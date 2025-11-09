@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="GENERAL_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <output url="file://$MODULE_DIR$/out/production/cluster" />
+    <output-test url="file://$MODULE_DIR$/out/test/cluster" />
+    <exclude-output />
+    <content url="file://$MODULE_DIR$" />
+    <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="library" name="Python 3.13 (dashboard) interpreter library" level="application" />
+  </component>
+</module>
