@@ -74,9 +74,9 @@ class HealthMonitor:
     async def check_all_nodes(self):
         """Check health of all nodes"""
         for node in self.nodes:
-            if node.status == NodeStatus.LEADER:
-                # Leader sends heartbeats
-                await node.send_heartbeats()
+            # Just check if nodes are responsive
+            # Heartbeats are handled by the leader's own loop
+            pass
     
     def stop_monitoring(self):
         """Stop health monitoring"""

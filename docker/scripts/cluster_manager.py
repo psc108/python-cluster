@@ -48,11 +48,11 @@ class ClusterManager:
             
             print("Waiting for nodes to be ready...")
             self._wait_for_cluster_ready()
-            print("✅ Cluster started successfully!")
+            print("[+] Cluster started successfully!")
             self._show_cluster_status()
             
         except subprocess.CalledProcessError as e:
-            print(f"❌ Failed to start cluster: {e}")
+            print(f"[-] Failed to start cluster: {e}")
             sys.exit(1)
 
     def stop_cluster(self):
@@ -69,10 +69,10 @@ class ClusterManager:
             # Remove network
             subprocess.run(["docker", "network", "rm", "cluster-net"], 
                          capture_output=True)
-            print("✅ Cluster stopped successfully!")
+            print("[+] Cluster stopped successfully!")
             
         except subprocess.CalledProcessError as e:
-            print(f"❌ Failed to stop cluster: {e}")
+            print(f"[-] Failed to stop cluster: {e}")
             sys.exit(1)
 
     def restart_cluster(self):
@@ -110,15 +110,15 @@ class ClusterManager:
 
     def _show_cluster_status(self):
         """Display current cluster status."""
-        print("\n📊 Cluster Status:")
+        print("\nCluster Status:")
         print("-" * 50)
         
         for i, port in enumerate(self.ports, 1):
             try:
                 response = requests.get(f"http://localhost:{port}/health", timeout=2)
-                status = "🟢 HEALTHY" if response.status_code == 200 else "🟡 DEGRADED"
+                status = "HEALTHY" if response.status_code == 200 else "DEGRADED"
             except requests.RequestException:
-                status = "🔴 UNHEALTHY"
+                status = "UNHEALTHY"
             
             print(f"Node {i} (port {port}): {status}")
         
