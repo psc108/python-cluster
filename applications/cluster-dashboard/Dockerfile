@@ -6,8 +6,16 @@ RUN apt-get update && apt-get install -y \
     zip \
     unzip \
     git \
+    ca-certificates \
+    gnupg \
+    lsb-release \
+    sudo \
     && docker-php-ext-install pdo pdo_mysql \
-    && a2enmod rewrite \
+    && a2enmod rewrite headers deflate \
+    && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null \
+    && apt-get update \
+    && apt-get install -y docker-ce-cli \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -17,9 +25,12 @@ WORKDIR /var/www/html
 COPY src/ .
 COPY apache.conf /etc/apache2/sites-available/000-default.conf
 
-# Set permissions
+# Set permissions and configure sudo for www-data
 RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 755 /var/www/html
+    && chmod -R 755 /var/www/html \
+    && groupadd -f docker \
+    && usermod -aG docker www-data \
+    && echo "www-data ALL=(ALL) NOPASSWD: /usr/bin/docker" >> /etc/sudoers
 
 # Create data directory for persistent storage
 RUN mkdir -p /var/www/html/data \

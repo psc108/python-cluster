@@ -174,6 +174,125 @@
         </main>
     </div>
 
+    <!-- Node Details Modal -->
+    <div id="nodeModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Node Details</h3>
+                <span class="close" onclick="closeNodeModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="node-details-grid">
+                    <div class="detail-section">
+                        <h4>Basic Information</h4>
+                        <p><strong>Node ID:</strong> <span id="nodeId">-</span></p>
+                        <p><strong>Status:</strong> <span id="nodeStatus">-</span></p>
+                        <p><strong>Role:</strong> <span id="nodeRole">-</span></p>
+                        <p><strong>Uptime:</strong> <span id="nodeUptime">-</span></p>
+                        <p><strong>Last Seen:</strong> <span id="nodeLastSeen">-</span></p>
+                    </div>
+                    
+                    <div class="detail-section">
+                        <h4>Resource Usage</h4>
+                        <div class="progress-bar">
+                            <label>CPU Usage</label>
+                            <div class="progress">
+                                <div class="progress-fill" id="modalCpuProgress"></div>
+                            </div>
+                            <span id="modalCpuPercent">0%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <label>Memory Usage</label>
+                            <div class="progress">
+                                <div class="progress-fill" id="modalMemoryProgress"></div>
+                            </div>
+                            <span id="modalMemoryPercent">0%</span>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-section">
+                        <h4>Network Information</h4>
+                        <p><strong>Internal Port:</strong> 8000</p>
+                        <p><strong>External Port:</strong> <span id="nodePort">-</span></p>
+                        <p><strong>Health Endpoint:</strong> <span id="nodeHealthUrl">-</span></p>
+                        <p><strong>Metrics Endpoint:</strong> <span id="nodeMetricsUrl">-</span></p>
+                    </div>
+                    
+                    <div class="detail-section">
+                        <h4>Cluster Information</h4>
+                        <p><strong>Leader ID:</strong> <span id="nodeLeaderId">-</span></p>
+                        <p><strong>Term:</strong> <span id="nodeTerm">-</span></p>
+                        <p><strong>Heartbeats:</strong> <span id="nodeHeartbeats">-</span></p>
+                        <p><strong>Elections:</strong> <span id="nodeElections">-</span></p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeNodeModal()">Close</button>
+                <button class="btn btn-primary" onclick="refreshNodeDetails()">Refresh</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Deploy Application Modal -->
+    <div id="deployModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Deploy Application</h3>
+                <span class="close" onclick="closeDeployModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="resource-info">
+                    <h4>Cluster Resources</h4>
+                    <div class="resource-grid">
+                        <div class="resource-item">
+                            <label>Used Ports:</label>
+                            <div id="usedPorts" class="resource-value">Loading...</div>
+                        </div>
+                        <div class="resource-item">
+                            <label>Memory Usage:</label>
+                            <div id="memoryInfo" class="resource-value">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+                <form id="deployForm">
+                    <div class="form-group">
+                        <label for="appName">Application Name *</label>
+                        <input type="text" id="appName" name="appName" required placeholder="my-app">
+                    </div>
+                    <div class="form-group">
+                        <label for="appImage">Docker Image *</label>
+                        <input type="text" id="appImage" name="appImage" required placeholder="nginx:latest">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="replicas">Replicas *</label>
+                            <input type="number" id="replicas" name="replicas" required min="1" value="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="port">Port *</label>
+                            <input type="number" id="port" name="port" required min="1" max="65535" value="8080">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="cpu">CPU Limit</label>
+                            <input type="text" id="cpu" name="cpu" placeholder="100m" value="100m">
+                        </div>
+                        <div class="form-group">
+                            <label for="memory">Memory Limit</label>
+                            <input type="text" id="memory" name="memory" placeholder="128Mi" value="128Mi">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeDeployModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitDeploy()">Deploy</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', function() {

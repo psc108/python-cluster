@@ -42,6 +42,10 @@ async def main():
     try:
         # Main loop with integrated heartbeat handling
         while True:
+            # Collect system metrics
+            if node.metrics_collector:
+                node.metrics_collector.collect_system_metrics()
+            
             # If this node is the leader, send heartbeats
             if node.status.value == 'leader':
                 print(f"Node {node_id}: Sending heartbeats as leader")

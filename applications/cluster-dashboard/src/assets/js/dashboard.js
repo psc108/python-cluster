@@ -123,10 +123,27 @@ async function refreshOverview() {
         updateProgressBar('cpu-progress', 'cpu-percent', metricsData.avg_cpu_percent);
         updateProgressBar('memory-progress', 'memory-percent', metricsData.avg_memory_percent);
         
-        // Mock application summary
-        document.getElementById('running-apps').textContent = '2';
-        document.getElementById('total-instances').textContent = '5';
-        document.getElementById('failed-apps').textContent = '0';
+        // Get real application summary
+        try {
+            const appsResponse = await fetch('/api/cluster.php?action=applications');
+            const apps = await appsResponse.json();
+            
+            const runningApps = apps.filter(app => app.status === 'running').length;
+            const totalInstances = apps.reduce((sum, app) => {
+                const replicas = app.replicas.split('/')[1] || '0';
+                return sum + parseInt(replicas);
+            }, 0);
+            const failedApps = apps.filter(app => app.status !== 'running').length;
+            
+            document.getElementById('running-apps').textContent = runningApps;
+            document.getElementById('total-instances').textContent = totalInstances;
+            document.getElementById('failed-apps').textContent = failedApps;
+        } catch (error) {
+            // Show zeros when no data available
+            document.getElementById('running-apps').textContent = '0';
+            document.getElementById('total-instances').textContent = '0';
+            document.getElementById('failed-apps').textContent = '0';
+        }
         
     } catch (error) {
         console.error('Error refreshing overview:', error);
@@ -175,6 +192,26 @@ async function refreshApplications() {
         
         apps.forEach(app => {
             const row = document.createElement('tr');
+            
+            // Determine which buttons to show based on status
+            let actionButtons = '';
+            if (app.status === 'running') {
+                actionButtons = `
+                    <button class="btn btn-small btn-secondary" onclick="scaleApplication('${app.name}')">Scale</button>
+                    <button class="btn btn-small btn-warning" onclick="pauseApplication('${app.name}')">Pause</button>
+                    <button class="btn btn-small btn-danger" onclick="stopApplication('${app.name}')">Stop</button>
+                `;
+            } else if (app.status === 'paused') {
+                actionButtons = `
+                    <button class="btn btn-small btn-success" onclick="resumeApplication('${app.name}')">Resume</button>
+                    <button class="btn btn-small btn-danger" onclick="stopApplication('${app.name}')">Stop</button>
+                `;
+            } else {
+                actionButtons = `
+                    <button class="btn btn-small btn-danger" onclick="stopApplication('${app.name}')">Stop</button>
+                `;
+            }
+            
             row.innerHTML = `
                 <td>${app.name}</td>
                 <td><span class="status-badge status-${app.status}">${app.status}</span></td>
@@ -182,10 +219,7 @@ async function refreshApplications() {
                 <td>${app.version}</td>
                 <td>${app.cpu_percent}%</td>
                 <td>${app.memory_mb} MB</td>
-                <td>
-                    <button class="btn btn-small btn-secondary" onclick="scaleApplication('${app.name}')">Scale</button>
-                    <button class="btn btn-small btn-danger" onclick="stopApplication('${app.name}')">Stop</button>
-                </td>
+                <td>${actionButtons}</td>
             `;
             tbody.appendChild(row);
         });
@@ -208,7 +242,7 @@ async function refreshMetrics() {
         document.getElementById('error-rate').textContent = `${metrics.error_rate}%`;
         document.getElementById('throughput').textContent = `${metrics.throughput_mbps} MB/s`;
         
-        // Update chart (simplified - in real implementation, use Chart.js or similar)
+        // Update chart
         updateMetricsChart(metrics);
         
     } catch (error) {
@@ -324,44 +358,343 @@ function updateMetricsChart(metrics) {
 }
 
 function showError(message) {
-    // Simple error display - in real implementation, use a proper notification system
     console.error(message);
-    alert(message);
+    
+    // Create toast notification
+    const toast = document.createElement('div');
+    toast.className = 'error-toast';
+    toast.textContent = message;
+    toast.style.cssText = 'position:fixed;top:20px;right:20px;background:#e74c3c;color:white;padding:12px 20px;border-radius:4px;z-index:1000;';
+    
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 5000);
 }
 
 // Application management functions
-function scaleApplication(appName) {
-    const replicas = prompt(`Enter new replica count for ${appName}:`, '3');
+async function scaleApplication(appName) {
+    const replicas = prompt(`Enter new replica count for ${appName}:`, '1');
     if (replicas && !isNaN(replicas)) {
-        console.log(`Scaling ${appName} to ${replicas} replicas`);
-        // In real implementation, make API call to scale application
-        alert(`Scaling ${appName} to ${replicas} replicas (demo)`);
+        try {
+            const response = await fetch('/api/cluster.php?action=scale', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    application: appName,
+                    replicas: parseInt(replicas)
+                })
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                alert(`Successfully scaled ${appName} to ${replicas} replicas`);
+                refreshApplications();
+            } else {
+                alert(`Failed to scale ${appName}: ${result.error}`);
+            }
+        } catch (error) {
+            console.error('Error scaling application:', error);
+            alert(`Error scaling ${appName}: ${error.message}`);
+        }
     }
 }
 
-function stopApplication(appName) {
+async function stopApplication(appName) {
     if (confirm(`Are you sure you want to stop ${appName}?`)) {
-        console.log(`Stopping application: ${appName}`);
-        // In real implementation, make API call to stop application
-        alert(`Stopping ${appName} (demo)`);
+        try {
+            const response = await fetch('/api/cluster.php?action=stop', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    application: appName
+                })
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                alert(`Successfully stopped ${appName}`);
+                refreshApplications();
+            } else {
+                alert(`Failed to stop ${appName}: ${result.error}`);
+            }
+        } catch (error) {
+            console.error('Error stopping application:', error);
+            alert(`Error stopping ${appName}: ${error.message}`);
+        }
     }
 }
 
-function viewNodeDetails(nodeId) {
-    console.log(`Viewing details for Node ${nodeId}`);
-    // In real implementation, show detailed node information
-    alert(`Node ${nodeId} details (demo)`);
+async function viewNodeDetails(nodeId) {
+    try {
+        // Fetch detailed node information
+        const [nodesResponse, metricsResponse] = await Promise.all([
+            fetch('/api/cluster.php?action=nodes'),
+            fetch('/api/cluster.php?action=metrics')
+        ]);
+        
+        const nodes = await nodesResponse.json();
+        const metrics = await metricsResponse.json();
+        
+        // Find the specific node
+        const node = nodes.find(n => n.id === nodeId);
+        if (!node) {
+            alert('Node not found');
+            return;
+        }
+        
+        // Populate modal with node details
+        document.getElementById('modalTitle').textContent = `Node ${nodeId} Details`;
+        document.getElementById('nodeId').textContent = nodeId;
+        document.getElementById('nodeStatus').innerHTML = `<span class="status-badge status-${node.status}">${node.status}</span>`;
+        document.getElementById('nodeRole').innerHTML = `<span class="status-badge ${node.role === 'leader' ? 'status-running' : 'status-healthy'}">${node.role}</span>`;
+        document.getElementById('nodeUptime').textContent = node.uptime;
+        document.getElementById('nodeLastSeen').textContent = node.last_seen;
+        
+        // Resource usage
+        updateProgressBar('modalCpuProgress', 'modalCpuPercent', node.cpu_percent);
+        updateProgressBar('modalMemoryProgress', 'modalMemoryPercent', node.memory_percent);
+        
+        // Network information
+        const externalPort = 8000 + nodeId;
+        document.getElementById('nodePort').textContent = externalPort;
+        document.getElementById('nodeHealthUrl').textContent = `http://localhost:${externalPort}/health`;
+        document.getElementById('nodeMetricsUrl').textContent = `http://localhost:${externalPort}/metrics`;
+        
+        // Get cluster information through our API
+        try {
+            const nodeDetailsResponse = await fetch(`/api/cluster.php?action=node_details&node_id=${nodeId}`);
+            const nodeDetails = await nodeDetailsResponse.json();
+            
+            document.getElementById('nodeLeaderId').textContent = nodeDetails.leader_id || 'Unknown';
+            document.getElementById('nodeTerm').textContent = nodeDetails.current_term || '0';
+            document.getElementById('nodeHeartbeats').textContent = nodeDetails.heartbeats || 'N/A';
+            document.getElementById('nodeElections').textContent = nodeDetails.elections || 'N/A';
+            
+        } catch (error) {
+            // Show unavailable when data cannot be retrieved
+            document.getElementById('nodeLeaderId').textContent = 'Unavailable';
+            document.getElementById('nodeTerm').textContent = 'Unavailable';
+            document.getElementById('nodeHeartbeats').textContent = 'Unavailable';
+            document.getElementById('nodeElections').textContent = 'Unavailable';
+        }
+        
+        // Show modal
+        document.getElementById('nodeModal').style.display = 'flex';
+        
+    } catch (error) {
+        console.error('Error fetching node details:', error);
+        alert('Failed to load node details');
+    }
 }
 
-function showDeployForm() {
-    console.log('Showing deploy form');
-    // In real implementation, show application deployment form
-    alert('Deploy application form (demo)');
+function closeNodeModal() {
+    document.getElementById('nodeModal').style.display = 'none';
+}
+
+function refreshNodeDetails() {
+    const nodeId = parseInt(document.getElementById('nodeId').textContent);
+    viewNodeDetails(nodeId);
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const nodeModal = document.getElementById('nodeModal');
+    const deployModal = document.getElementById('deployModal');
+    
+    if (event.target === nodeModal) {
+        closeNodeModal();
+    }
+    
+    if (event.target === deployModal) {
+        closeDeployModal();
+    }
+}
+
+async function showDeployForm() {
+    // Reset form
+    document.getElementById('deployForm').reset();
+    document.getElementById('replicas').value = '1';
+    document.getElementById('port').value = '8080';
+    document.getElementById('cpu').value = '100m';
+    document.getElementById('memory').value = '128Mi';
+    
+    // Load resource information
+    await loadResourceInfo();
+    
+    // Show modal
+    document.getElementById('deployModal').style.display = 'flex';
+}
+
+async function loadResourceInfo() {
+    try {
+        const response = await fetch('/api/cluster.php?action=resource_info');
+        const data = await response.json();
+        
+        // Display used ports (remove duplicates)
+        const usedPortsElement = document.getElementById('usedPorts');
+        if (data.used_ports && data.used_ports.length > 0) {
+            const uniquePorts = [...new Set(data.used_ports)].sort((a, b) => a - b);
+            usedPortsElement.textContent = uniquePorts.join(', ');
+        } else {
+            usedPortsElement.textContent = 'None';
+        }
+        
+        // Display memory information
+        const memoryInfoElement = document.getElementById('memoryInfo');
+        const memory = data.memory;
+        memoryInfoElement.innerHTML = `
+            Total: ${memory.total_mb} MB<br>
+            Used: ${memory.used_mb} MB (${memory.usage_percent}%)<br>
+            Available: ${memory.available_mb} MB
+        `;
+        
+    } catch (error) {
+        console.error('Error loading resource info:', error);
+        document.getElementById('usedPorts').textContent = 'Error loading';
+        document.getElementById('memoryInfo').textContent = 'Error loading';
+    }
+}
+
+function closeDeployModal() {
+    document.getElementById('deployModal').style.display = 'none';
+}
+
+function submitDeploy() {
+    const form = document.getElementById('deployForm');
+    const formData = new FormData(form);
+    
+    const appName = formData.get('appName').trim();
+    const appImage = formData.get('appImage').trim();
+    const replicas = parseInt(formData.get('replicas'));
+    const port = parseInt(formData.get('port'));
+    const cpu = formData.get('cpu').trim() || '100m';
+    const memory = formData.get('memory').trim() || '128Mi';
+    
+    // Validate required fields
+    if (!appName || !appImage || !replicas || !port) {
+        alert('Please fill in all required fields');
+        return;
+    }
+    
+    // Validate numeric fields
+    if (isNaN(replicas) || replicas < 1) {
+        alert('Replicas must be a positive number');
+        return;
+    }
+    
+    if (isNaN(port) || port < 1 || port > 65535) {
+        alert('Port must be between 1 and 65535');
+        return;
+    }
+    
+    // Close modal and deploy
+    closeDeployModal();
+    deployApplication(appName, appImage, replicas, port, cpu, memory);
+}
+
+async function deployApplication(appName, image, replicas, port, cpu, memory) {
+    try {
+        const response = await fetch('/api/cluster.php?action=deploy', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                name: appName,
+                image: image,
+                replicas: replicas,
+                ports: [{ name: 'http', port: port }],
+                resources: { cpu: cpu, memory: memory }
+            })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            alert(`Successfully deployed ${appName}`);
+            refreshApplications();
+        } else {
+            alert(`Failed to deploy ${appName}: ${result.error}`);
+        }
+    } catch (error) {
+        console.error('Error deploying application:', error);
+        alert(`Error deploying ${appName}: ${error.message}`);
+    }
+}
+
+async function pauseApplication(appName) {
+    if (confirm(`Are you sure you want to pause ${appName}?`)) {
+        try {
+            const response = await fetch('/api/cluster.php?action=pause', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    application: appName
+                })
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                alert(`Successfully paused ${appName}`);
+                refreshApplications();
+            } else {
+                alert(`Failed to pause ${appName}: ${result.error}`);
+            }
+        } catch (error) {
+            console.error('Error pausing application:', error);
+            alert(`Error pausing ${appName}: ${error.message}`);
+        }
+    }
+}
+
+async function resumeApplication(appName) {
+    try {
+        const response = await fetch('/api/cluster.php?action=resume', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                application: appName
+            })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            alert(`Successfully resumed ${appName}`);
+            refreshApplications();
+        } else {
+            alert(`Failed to resume ${appName}: ${result.error}`);
+        }
+    } catch (error) {
+        console.error('Error resuming application:', error);
+        alert(`Error resuming ${appName}: ${error.message}`);
+    }
 }
 
 // Cleanup on page unload
 window.addEventListener('beforeunload', function() {
     if (refreshInterval) {
         clearInterval(refreshInterval);
+    }
+});
+
+// Helper function to extract metrics from Prometheus text
+function extractMetricFromText(metricsText, metricName) {
+    const regex = new RegExp(`${metricName}(?:\\{[^}]*\\})?\\s+(\\d+(?:\\.\\d+)?)`, 'm');
+    const match = metricsText.match(regex);
+    return match ? parseFloat(match[1]) : 0;
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(event) {
+    // Close modals with Escape key
+    if (event.key === 'Escape') {
+        closeNodeModal();
+        closeDeployModal();
     }
 });
