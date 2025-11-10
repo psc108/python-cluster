@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: Application
+metadata:
+  name: cluster-dashboard
+  version: 1.0.0
+  description: "Web dashboard for monitoring cluster status and applications"
+spec:
+  replicas: 2
+  image: cluster-dashboard:latest
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+  resources:
+    cpu: 200m
+    memory: 256Mi
+  healthCheck:
+    path: /health.php
+    port: 80
+    interval: 30s
+    timeout: 5s
+  environment:
+    - name: LOG_LEVEL
+      value: INFO
+    - name: CLUSTER_MODE
+      value: "true"
+    - name: CLUSTER_API_URL
+      value: "http://cluster-node-1:8000"
+  volumes:
+    - name: dashboard-data
+      mountPath: /var/www/html/data
+      storageClass: fast-ssd
+      capacity: 1Gi
+  scaling:
+    minReplicas: 1
+    maxReplicas: 5
+    metrics:
+      - type: cpu
+        target: 70%
+      - type: requests_per_second
+        target: 100
