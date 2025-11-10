@@ -11,9 +11,10 @@ redis>=4.5.0
 sqlalchemy>=2.0.0
 cryptography>=40.0.0
 
-# Phase 3 - Production Features (commented for initial phase)
-# fastapi>=0.100.0
-# uvicorn>=0.22.0
-# prometheus-client>=0.16.0
-# click>=8.1.0
-# pyyaml>=6.0
+# Phase 3 - Production Features
+fastapi>=0.100.0
+uvicorn>=0.22.0
+prometheus-client>=0.16.0
+click>=8.1.0
+pyyaml>=6.0
+psutil>=5.9.0

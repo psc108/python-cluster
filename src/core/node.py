@@ -19,6 +19,14 @@ except ImportError:
     # Fallback for testing
     pass
 
+# Phase 3 imports
+try:
+    from ..monitoring.metrics import MetricsCollector
+    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+except ImportError:
+    # Fallback for testing
+    pass
+
 
 class NodeStatus(Enum):
     FOLLOWER = "follower"
@@ -51,12 +59,16 @@ class Node:
         self.distributed_log: Optional['DistributedLog'] = None
         self.distributed_state: Optional['DistributedState'] = None
         
+        # Phase 3 components
+        self.metrics_collector: Optional['MetricsCollector'] = None
+        
     async def start(self):
         """Start the node server"""
         app = aiohttp.web.Application()
         app.router.add_get('/health', self.health_check)
         app.router.add_post('/vote', self.handle_vote)
         app.router.add_post('/heartbeat', self.handle_heartbeat)
+        app.router.add_get('/metrics', self.metrics_endpoint)
         
         runner = aiohttp.web.AppRunner(app)
         await runner.setup()
@@ -68,6 +80,9 @@ class Node:
         
         # Initialize Phase 2 components
         await self.initialize_phase2_components()
+        
+        # Initialize Phase 3 components
+        await self.initialize_phase3_components()
         
     async def health_check(self, request):
         """Health check endpoint"""
@@ -89,6 +104,10 @@ class Node:
             self.voted_for = None
             self.status = NodeStatus.FOLLOWER
             self.leader_id = None
+        
+        # Update metrics
+        if self.metrics_collector:
+            self.metrics_collector.record_vote_request()
         
         # Grant vote if haven't voted in this term and candidate term >= current term
         vote_granted = (candidate_term >= self.current_term and 
@@ -115,6 +134,10 @@ class Node:
             self.status = NodeStatus.FOLLOWER
             self.voted_for = None
             print(f"Node {self.node_id}: Received heartbeat from leader {leader_id}, term {leader_term}")
+            
+            # Update metrics
+            if self.metrics_collector:
+                self.metrics_collector.record_heartbeat_received()
             
         return aiohttp.web.json_response({
             'success': leader_term >= self.current_term,
@@ -197,9 +220,17 @@ class Node:
             self.status = NodeStatus.LEADER
             self.leader_id = self.node_id
             print(f"Node {self.node_id}: Became leader with {votes} votes")
+            
+            # Update metrics
+            if self.metrics_collector:
+                self.metrics_collector.record_leader_election(True)
         else:
             self.status = NodeStatus.FOLLOWER
             print(f"Node {self.node_id}: Election failed, becoming follower")
+            
+            # Update metrics
+            if self.metrics_collector:
+                self.metrics_collector.record_leader_election(False)
     
 
     async def send_heartbeats(self):
@@ -218,6 +249,10 @@ class Node:
                     ) as resp:
                         if resp.status == 200:
                             print(f"Node {self.node_id}: Heartbeat sent to peer {peer.node_id}")
+                            
+                            # Update metrics
+                            if self.metrics_collector:
+                                self.metrics_collector.record_heartbeat_sent()
             except Exception as e:
                 print(f"Node {self.node_id}: Failed to send heartbeat to peer {peer.node_id}: {e}")
     
@@ -244,3 +279,28 @@ class Node:
             
         except Exception as e:
             print(f"Node {self.node_id}: Failed to initialize Phase 2 components: {e}")
+    
+    async def metrics_endpoint(self, request):
+        """Prometheus metrics endpoint"""
+        try:
+            metrics_data = generate_latest()
+            return aiohttp.web.Response(
+                body=metrics_data,
+                headers={'Content-Type': CONTENT_TYPE_LATEST}
+            )
+        except Exception as e:
+            return aiohttp.web.json_response(
+                {'error': f'Metrics unavailable: {e}'},
+                status=500
+            )
+    
+    async def initialize_phase3_components(self):
+        """Initialize Phase 3 production components"""
+        try:
+            # Initialize metrics collector
+            self.metrics_collector = MetricsCollector(self.node_id)
+            
+            print(f"Node {self.node_id}: Phase 3 components initialized")
+            
+        except Exception as e:
+            print(f"Node {self.node_id}: Failed to initialize Phase 3 components: {e}")
