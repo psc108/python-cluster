@@ -4,7 +4,26 @@
 
 The Application Framework provides a standardized way to develop, deploy, and manage applications on the clustering system. Applications run as distributed services across cluster nodes with automatic load balancing, fault tolerance, and lifecycle management.
 
-## Core Concepts
+## Architecture Pattern
+
+### Hybrid Frontend-Backend Architecture
+The cluster system uses a **Python-backend, Web-frontend** architecture pattern:
+
+- **Python Backend**: Core functionality, business logic, Docker operations, scaling logic
+  - Reliable execution environment
+  - Direct system access (Docker socket, file system)
+  - Complex algorithms and data processing
+  - Background services and schedulers
+
+- **Web Frontend**: User interface, API endpoints, data presentation
+  - JavaScript for dynamic UI interactions
+  - PHP for simple API routing and data formatting
+  - HTML/CSS for user interface
+  - Real-time dashboard updates
+
+- **Communication**: Frontend calls Python services via HTTP APIs or direct script execution
+
+### Core Concepts
 
 ### Application
 A distributed service that runs across multiple cluster nodes, consisting of:
@@ -67,6 +86,58 @@ spec:
       value: INFO
     - name: CLUSTER_MODE
       value: "true"
+```
+
+## Implementation Guidelines
+
+### Python Backend Services
+Core functionality should be implemented in Python:
+
+```python
+# Example: Auto-scaling service
+class AutoScalingService:
+    def __init__(self, docker_client):
+        self.docker = docker_client
+        
+    def scale_application(self, app_name: str, target_replicas: int):
+        """Reliable container scaling with proper error handling"""
+        try:
+            containers = self.docker.containers.list(filters={"label": f"app={app_name}"})
+            current_count = len([c for c in containers if c.status == "running"])
+            
+            if target_replicas > current_count:
+                self._scale_up(app_name, target_replicas - current_count)
+            elif target_replicas < current_count:
+                self._scale_down(app_name, current_count - target_replicas)
+                
+            return {"success": True, "replicas": target_replicas}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+```
+
+### Web Frontend Integration
+Frontend calls Python services:
+
+```javascript
+// Dashboard calls Python scaling service
+async function scaleApplication(appName, replicas) {
+    const response = await fetch('/api/python/scale', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({app: appName, replicas: replicas})
+    });
+    return response.json();
+}
+```
+
+```php
+// PHP routes to Python service
+if ($action === 'scale') {
+    $pythonScript = __DIR__ . '/../../scripts/scale_app.py';
+    $command = "python {$pythonScript} {$appName} {$replicas}";
+    $result = shell_exec($command);
+    echo $result;
+}
 ```
 
 ## Application Base Class
@@ -368,12 +439,20 @@ class TaskProcessorApp(ClusterApplication):
 
 ## Best Practices
 
+### Architecture Decisions
+- **Use Python for**: Docker operations, scaling logic, background services, complex algorithms
+- **Use Web technologies for**: User interfaces, simple API routing, data presentation
+- **Communication**: Frontend → Python via HTTP APIs or script execution
+- **Error Handling**: Python services return structured JSON responses
+
 ### Development
 - Use async/await for non-blocking operations
 - Implement proper error handling and retries
 - Design for horizontal scaling
 - Make applications stateless when possible
 - Use structured logging with correlation IDs
+- **Python services**: Focus on reliability and system integration
+- **Web frontend**: Focus on user experience and data visualization
 
 ### Deployment
 - Define resource limits and requests

@@ -4,6 +4,41 @@
 
 The Auto-Scaling system automatically adjusts application instances and cluster resources based on demand, performance metrics, and predefined policies. It ensures optimal resource utilization while maintaining application performance and availability.
 
+## Implementation Phases
+
+The auto-scaling system is implemented in progressive phases, each building upon the previous phase's capabilities:
+
+### Phase 1: Foundation (Current)
+- ✅ Manual scaling via dashboard
+- ✅ Basic resource monitoring (CPU, memory)
+- ✅ Application lifecycle management
+- ✅ Real-time metrics collection
+
+### Phase 2: Basic Auto-Scaling
+- ✅ Metric-based scaling policies
+- ✅ Simple threshold-based triggers
+- ✅ Scaling event logging
+- ✅ Dashboard policy management
+- ⚠️ **Architecture Migration**: Moving core functionality to Python backend
+
+### Phase 3: Advanced Policies (Complete)
+- ✅ Schedule-based scaling
+- ✅ Multi-metric scaling decisions
+- ✅ Cooldown and rate limiting
+- ✅ Scaling history analytics
+
+### Phase 4: Intelligent Scaling
+- ⏳ Predictive scaling with ML
+- ⏳ Cluster-level auto-scaling
+- ⏳ Cost optimization algorithms
+- ⏳ Advanced monitoring and alerting
+
+### Phase 5: Enterprise Features
+- ⏳ Multi-cluster scaling
+- ⏳ Custom scaling algorithms
+- ⏳ Integration with cloud providers
+- ⏳ Compliance and governance
+
 ## Scaling Types
 
 ### Horizontal Scaling (Scale Out/In)
@@ -111,6 +146,352 @@ spec:
   training:
     dataRetention: 30d
     retrainInterval: 24h
+```
+
+## Phase 2 Implementation: Basic Auto-Scaling
+
+### Architecture: Python Backend + Web Frontend
+
+Core auto-scaling functionality implemented in Python for reliability:
+
+```python
+# src/services/autoscaler_service.py
+class AutoScalerService:
+    def __init__(self):
+        self.docker_client = docker.from_env()
+        self.policies = self.load_policies()
+        
+    def evaluate_policies(self):
+        """Main scaling evaluation loop"""
+        for policy in self.policies:
+            if policy['enabled']:
+                self.evaluate_policy(policy)
+                
+    def scale_application(self, app_name: str, target_replicas: int):
+        """Reliable container scaling"""
+        # Direct Docker operations with proper error handling
+        return self._execute_scaling(app_name, target_replicas)
+```
+
+Web frontend provides user interface and calls Python services:
+
+```javascript
+// Dashboard calls Python auto-scaler
+async function enableAutoScaling(appName, policy) {
+    const response = await fetch('/api/autoscaler/enable', {
+        method: 'POST',
+        body: JSON.stringify({app: appName, policy: policy})
+    });
+    return response.json();
+}
+```
+
+### Dashboard Integration
+
+#### Auto-Scaling Policy Creation
+```javascript
+// Add to deploy modal
+function showAutoScalingOptions() {
+    const autoScalingSection = `
+        <div class="auto-scaling-section">
+            <h4>Auto-Scaling Policy (Optional)</h4>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="enableAutoScaling"> Enable Auto-Scaling
+                </label>
+            </div>
+            <div id="autoScalingConfig" style="display: none;">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="minReplicas">Min Replicas</label>
+                        <input type="number" id="minReplicas" min="1" value="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="maxReplicas">Max Replicas</label>
+                        <input type="number" id="maxReplicas" min="1" value="5">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="cpuThreshold">CPU Threshold (%)</label>
+                        <input type="number" id="cpuThreshold" min="1" max="100" value="70">
+                    </div>
+                    <div class="form-group">
+                        <label for="memoryThreshold">Memory Threshold (%)</label>
+                        <input type="number" id="memoryThreshold" min="1" max="100" value="80">
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+```
+
+#### Scaling Status Display
+```javascript
+// Enhanced applications table
+function renderApplicationRow(app) {
+    const scalingStatus = app.autoScaling ? 
+        `<span class="scaling-badge scaling-enabled">Auto</span>` : 
+        `<span class="scaling-badge scaling-disabled">Manual</span>`;
+        
+    return `
+        <tr>
+            <td>${app.name}</td>
+            <td>${scalingStatus}</td>
+            <td><span class="status-badge status-${app.status}">${app.status}</span></td>
+            <td>${app.replicas}</td>
+            <td>${app.cpu_percent}%</td>
+            <td>${app.memory_mb} MB</td>
+            <td>${renderActionButtons(app)}</td>
+        </tr>
+    `;
+}
+```
+
+### Python Auto-Scaler Service
+```python
+# src/services/autoscaler_service.py
+import docker
+import json
+import time
+from typing import Dict, List, Optional
+
+class AutoScalerService:
+    def __init__(self):
+        self.docker_client = docker.from_env()
+        self.policies_file = 'data/scaling_policies.json'
+        self.events_file = 'data/scaling_events.json'
+        self.cooldown_period = 300  # 5 minutes
+        self.last_scaling = {}
+        
+    def evaluate_all_policies(self) -> Dict:
+        """Evaluate all enabled scaling policies"""
+        policies = self.load_policies()
+        results = []
+        
+        for policy in policies:
+            if policy.get('enabled', False):
+                result = self.evaluate_policy(policy)
+                if result:
+                    results.append(result)
+                    
+        return {'evaluated': len(policies), 'actions': results}
+        
+    def evaluate_policy(self, policy: Dict) -> Optional[Dict]:
+        """Evaluate single scaling policy"""
+        app_name = policy['application']
+        
+        # Check cooldown
+        if self.is_in_cooldown(app_name):
+            return None
+            
+        # Get current metrics
+        metrics = self.get_application_metrics(app_name)
+        current_replicas = self.get_current_replicas(app_name)
+        
+        # Determine scaling action
+        target_replicas = self.calculate_target_replicas(
+            policy, metrics, current_replicas
+        )
+        
+        if target_replicas != current_replicas:
+            return self.execute_scaling(app_name, target_replicas, policy)
+            
+        return None
+        
+    def execute_scaling(self, app_name: str, target_replicas: int, policy: Dict) -> Dict:
+        """Execute scaling action with proper logging"""
+        # Implementation details...
+```
+
+## Phase 3 Implementation: Advanced Policies
+
+### Schedule-Based Scaling
+
+Automatic scaling based on time schedules and patterns:
+
+```python
+# Enhanced policy structure
+{
+    "application": "web-app",
+    "type": "scheduled",
+    "schedules": [
+        {
+            "name": "business-hours",
+            "cron": "0 8 * * 1-5",
+            "replicas": 8,
+            "enabled": true
+        },
+        {
+            "name": "weekend-minimal",
+            "cron": "0 0 * * 6,0",
+            "replicas": 2,
+            "enabled": true
+        }
+    ]
+}
+```
+
+### Multi-Metric Scaling
+
+Combine multiple metrics for intelligent scaling decisions:
+
+```python
+# Advanced policy with multiple metrics
+{
+    "application": "api-service",
+    "type": "multi-metric",
+    "metrics": [
+        {
+            "name": "cpu",
+            "threshold": 70,
+            "weight": 0.4
+        },
+        {
+            "name": "memory",
+            "threshold": 80,
+            "weight": 0.3
+        },
+        {
+            "name": "response_time",
+            "threshold": 500,
+            "weight": 0.3
+        }
+    ],
+    "decision_algorithm": "weighted_average"
+}
+```
+
+### Cooldown and Rate Limiting
+
+Prevents rapid scaling oscillations:
+
+```python
+# Enhanced cooldown configuration
+{
+    "cooldown": {
+        "scale_up": 300,    # 5 minutes
+        "scale_down": 600,  # 10 minutes
+        "global": 180       # 3 minutes between any actions
+    },
+    "rate_limiting": {
+        "max_scale_per_hour": 10,
+        "max_replicas_change": 5
+    }
+}
+```
+
+### Scaling History Analytics
+
+Track and analyze scaling patterns:
+
+```python
+# Analytics data structure
+{
+    "application": "web-app",
+    "period": "24h",
+    "analytics": {
+        "total_scaling_events": 15,
+        "scale_up_events": 8,
+        "scale_down_events": 7,
+        "avg_response_time": 2.3,
+        "efficiency_score": 0.85,
+        "cost_savings": 23.5
+    }
+}
+```
+        """Execute scaling action with proper error handling"""
+        try:
+            # Record scaling event
+            event = {
+                'timestamp': time.time(),
+                'application': app_name,
+                'action': 'scale_up' if target_replicas > self.get_current_replicas(app_name) else 'scale_down',
+                'from_replicas': self.get_current_replicas(app_name),
+                'to_replicas': target_replicas,
+                'policy': policy['name']
+            }
+            
+            # Perform scaling
+            success = self.scale_containers(app_name, target_replicas)
+            
+            if success:
+                self.record_scaling_event(event)
+                self.last_scaling[app_name] = time.time()
+                return {'success': True, 'event': event}
+            else:
+                return {'success': False, 'error': 'Scaling operation failed'}
+                
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+            
+    def scale_containers(self, app_name: str, target_replicas: int) -> bool:
+        """Direct Docker container scaling"""
+        try:
+            containers = self.docker_client.containers.list(
+                all=True, filters={'label': f'app={app_name}'}
+            )
+            
+            running_containers = [c for c in containers if c.status == 'running']
+            current_count = len(running_containers)
+            
+            if target_replicas > current_count:
+                return self._scale_up(app_name, target_replicas - current_count)
+            elif target_replicas < current_count:
+                return self._scale_down(running_containers, current_count - target_replicas)
+                
+            return True
+            
+        except Exception as e:
+            print(f"Scaling error: {e}")
+            return False
+```
+
+### API Integration
+```php
+// cluster.php routes to Python services
+switch ($action) {
+    case 'create_scaling_policy':
+        $result = shell_exec("python src/services/autoscaler_service.py create_policy '" . json_encode($_POST) . "'");
+        echo $result;
+        break;
+        
+    case 'evaluate_scaling':
+        $result = shell_exec("python src/services/autoscaler_service.py evaluate_all");
+        echo $result;
+        break;
+        
+    case 'scale_application':
+        $app = $_POST['application'];
+        $replicas = $_POST['replicas'];
+        $result = shell_exec("python src/services/autoscaler_service.py scale {$app} {$replicas}");
+        echo $result;
+        break;
+}
+```
+
+### Background Auto-Scaler Service
+```python
+# scripts/autoscaler_daemon.py
+import asyncio
+import time
+from src.services.autoscaler_service import AutoScalerService
+
+async def main():
+    autoscaler = AutoScalerService()
+    
+    while True:
+        try:
+            result = autoscaler.evaluate_all_policies()
+            print(f"Auto-scaler evaluation: {result}")
+        except Exception as e:
+            print(f"Auto-scaler error: {e}")
+            
+        await asyncio.sleep(60)  # Evaluate every minute
+        
+if __name__ == '__main__':
+    asyncio.run(main())
 ```
 
 ## Scaling Engine
@@ -554,6 +935,247 @@ alerts:
     severity: warning
     message: "Application {{ $labels.app }} has reached maximum replicas"
 ```
+
+## Phase 4 Implementation: Intelligent Scaling
+
+### Machine Learning Integration
+```python
+class MLScalingPredictor:
+    def __init__(self):
+        self.models = {
+            'cpu_predictor': TimeSeriesModel(),
+            'memory_predictor': TimeSeriesModel(),
+            'request_predictor': TimeSeriesModel()
+        }
+    
+    async def train_models(self, historical_data):
+        """Train ML models on historical metrics"""
+        for metric_type, model in self.models.items():
+            metric_data = historical_data[metric_type]
+            model.fit(metric_data)
+    
+    async def predict_scaling_needs(self, app_name, horizon_minutes=30):
+        """Predict future resource needs"""
+        predictions = {}
+        for metric_type, model in self.models.items():
+            predictions[metric_type] = model.predict(horizon_minutes)
+        
+        return self.generate_scaling_recommendations(predictions)
+```
+
+### Cost Optimization Engine
+```python
+class CostOptimizedScaler:
+    def __init__(self, cost_model):
+        self.cost_model = cost_model
+    
+    async def optimize_scaling_decision(self, scaling_options):
+        """Choose most cost-effective scaling option"""
+        best_option = None
+        lowest_cost = float('inf')
+        
+        for option in scaling_options:
+            cost = await self.calculate_scaling_cost(option)
+            performance_impact = await self.estimate_performance_impact(option)
+            
+            # Cost-performance trade-off analysis
+            score = self.calculate_cost_performance_score(cost, performance_impact)
+            
+            if score < lowest_cost:
+                lowest_cost = score
+                best_option = option
+        
+        return best_option
+```
+
+### Advanced Monitoring Dashboard
+```javascript
+// Predictive scaling visualization
+function renderPredictiveScaling(predictions) {
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: predictions.timestamps,
+            datasets: [{
+                label: 'Predicted CPU',
+                data: predictions.cpu,
+                borderColor: 'rgb(255, 99, 132)',
+                tension: 0.1
+            }, {
+                label: 'Predicted Memory',
+                data: predictions.memory,
+                borderColor: 'rgb(54, 162, 235)',
+                tension: 0.1
+            }]
+        },
+        options: {
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100
+                }
+            },
+            plugins: {
+                annotation: {
+                    annotations: {
+                        scaleUpLine: {
+                            type: 'line',
+                            yMin: 80,
+                            yMax: 80,
+                            borderColor: 'red',
+                            borderWidth: 2,
+                            label: {
+                                content: 'Scale Up Threshold',
+                                enabled: true
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+```
+
+## Phase 5 Implementation: Enterprise Features
+
+### Multi-Cluster Scaling
+```python
+class MultiClusterScaler:
+    def __init__(self, cluster_managers):
+        self.clusters = cluster_managers
+        self.global_policies = {}
+    
+    async def evaluate_global_scaling(self):
+        """Evaluate scaling across multiple clusters"""
+        cluster_metrics = {}
+        
+        # Collect metrics from all clusters
+        for cluster_id, cluster in self.clusters.items():
+            cluster_metrics[cluster_id] = await cluster.get_cluster_metrics()
+        
+        # Make global scaling decisions
+        for policy in self.global_policies.values():
+            await self.evaluate_global_policy(policy, cluster_metrics)
+    
+    async def migrate_workload(self, from_cluster, to_cluster, app_name):
+        """Migrate application between clusters"""
+        # Scale up in target cluster
+        await to_cluster.scale_application(app_name, target_replicas)
+        
+        # Wait for instances to be ready
+        await self.wait_for_healthy_instances(to_cluster, app_name)
+        
+        # Update load balancer
+        await self.update_global_load_balancer(app_name)
+        
+        # Scale down in source cluster
+        await from_cluster.scale_application(app_name, 0)
+```
+
+### Custom Scaling Algorithms
+```python
+class CustomScalingAlgorithm:
+    def __init__(self, algorithm_config):
+        self.config = algorithm_config
+        self.custom_metrics = {}
+    
+    async def register_custom_metric(self, metric_name, collector_func):
+        """Register custom application metric"""
+        self.custom_metrics[metric_name] = collector_func
+    
+    async def evaluate_custom_policy(self, policy):
+        """Evaluate policy using custom algorithm"""
+        # Collect custom metrics
+        metrics = {}
+        for metric_name, collector in self.custom_metrics.items():
+            metrics[metric_name] = await collector()
+        
+        # Apply custom algorithm
+        algorithm = self.config['algorithm']
+        if algorithm == 'queue_based':
+            return await self.queue_based_scaling(metrics, policy)
+        elif algorithm == 'latency_based':
+            return await self.latency_based_scaling(metrics, policy)
+        elif algorithm == 'custom_function':
+            return await self.execute_custom_function(metrics, policy)
+```
+
+### Compliance and Governance
+```python
+class ScalingGovernance:
+    def __init__(self, compliance_rules):
+        self.rules = compliance_rules
+        self.audit_log = []
+    
+    async def validate_scaling_decision(self, decision):
+        """Validate scaling decision against compliance rules"""
+        for rule in self.rules:
+            if not await self.check_compliance_rule(decision, rule):
+                await self.log_compliance_violation(decision, rule)
+                return False
+        
+        await self.log_approved_scaling(decision)
+        return True
+    
+    async def generate_compliance_report(self, period_days=30):
+        """Generate compliance report for auditing"""
+        report = {
+            'period': period_days,
+            'total_scaling_events': len(self.audit_log),
+            'compliance_violations': self.count_violations(),
+            'resource_usage_trends': await self.analyze_resource_trends(),
+            'cost_optimization_metrics': await self.calculate_cost_savings()
+        }
+        
+        return report
+```
+
+## Implementation Roadmap
+
+### Phase 2: Basic Auto-Scaling (Next)
+**Timeline**: 2-3 weeks
+**Priority**: High
+**Dependencies**: Current dashboard functionality
+
+**Deliverables**:
+- [ ] Auto-scaling policy creation UI
+- [ ] Basic metric-based scaling engine
+- [ ] Scaling event logging
+- [ ] Dashboard integration
+
+### Phase 3: Advanced Policies (3-4 weeks)
+**Timeline**: 3-4 weeks
+**Priority**: Medium
+**Dependencies**: Phase 2 completion
+
+**Deliverables**:
+- [ ] Schedule-based scaling
+- [ ] Multi-metric policies
+- [ ] Scaling analytics dashboard
+- [ ] Advanced cooldown mechanisms
+
+### Phase 4: Intelligent Scaling (6-8 weeks)
+**Timeline**: 6-8 weeks
+**Priority**: Medium
+**Dependencies**: Phase 3, ML infrastructure
+
+**Deliverables**:
+- [ ] ML-based prediction models
+- [ ] Cost optimization engine
+- [ ] Advanced monitoring and alerting
+- [ ] Performance optimization
+
+### Phase 5: Enterprise Features (8-12 weeks)
+**Timeline**: 8-12 weeks
+**Priority**: Low
+**Dependencies**: Phase 4, enterprise requirements
+
+**Deliverables**:
+- [ ] Multi-cluster scaling
+- [ ] Custom scaling algorithms
+- [ ] Compliance and governance
+- [ ] Cloud provider integration
 
 ## Best Practices
 

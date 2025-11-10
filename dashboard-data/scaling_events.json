@@ -1,0 +1,9 @@
+[
+    {
+        "application": "test-suite-app",
+        "action": "scale_down",
+        "replicas": 1,
+        "reason": "Low resource usage",
+        "timestamp": 1762770953
+    }
+]

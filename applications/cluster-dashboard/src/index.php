@@ -21,6 +21,7 @@
             <button class="tab-button active" onclick="showTab('overview')">Overview</button>
             <button class="tab-button" onclick="showTab('nodes')">Nodes</button>
             <button class="tab-button" onclick="showTab('applications')">Applications</button>
+            <button class="tab-button" onclick="showTab('autoscaling')">Auto-Scaling</button>
             <button class="tab-button" onclick="showTab('metrics')">Metrics</button>
             <button class="tab-button" onclick="showTab('storage')">Storage</button>
         </nav>
@@ -103,9 +104,9 @@
                         <thead>
                             <tr>
                                 <th>Name</th>
+                                <th>Auto-Scale</th>
                                 <th>Status</th>
                                 <th>Replicas</th>
-                                <th>Version</th>
                                 <th>CPU</th>
                                 <th>Memory</th>
                                 <th>Actions</th>
@@ -113,6 +114,86 @@
                         </thead>
                         <tbody id="apps-tbody">
                             <tr><td colspan="7">Loading applications...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Auto-Scaling Tab -->
+            <div id="autoscaling" class="tab-content">
+                <div class="autoscaling-controls">
+                    <button class="btn btn-primary" onclick="refreshPolicies()">Refresh Policies</button>
+                    <button class="btn btn-secondary" onclick="showCreatePolicyModal()">Create Policy</button>
+                    <button class="btn btn-secondary" onclick="showCreateScheduledPolicyModal()">Create Schedule</button>
+                    <button class="btn btn-info" onclick="showAnalyticsModal()">View Analytics</button>
+                </div>
+                
+                <div class="cards-grid">
+                    <div class="card">
+                        <h3>Scaling Overview</h3>
+                        <div id="scaling-summary">
+                            <p><strong>Active Policies:</strong> <span id="active-policies">-</span></p>
+                            <p><strong>Auto-Scaled Apps:</strong> <span id="autoscaled-apps">-</span></p>
+                            <p><strong>Recent Actions:</strong> <span id="recent-actions">-</span></p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="table-container">
+                    <h3>Scaling Policies</h3>
+                    <table id="policies-table">
+                        <thead>
+                            <tr>
+                                <th>Application</th>
+                                <th>Type</th>
+                                <th>Min/Max Replicas</th>
+                                <th>Thresholds</th>
+                                <th>Cooldown</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="policies-tbody">
+                            <tr><td colspan="7">Loading policies...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="table-container">
+                    <h3>Scheduled Policies</h3>
+                    <table id="scheduled-policies-table">
+                        <thead>
+                            <tr>
+                                <th>Application</th>
+                                <th>Schedule Name</th>
+                                <th>Time</th>
+                                <th>Days</th>
+                                <th>Target Replicas</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scheduled-policies-tbody">
+                            <tr><td colspan="7">Loading scheduled policies...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="table-container">
+                    <h3>Recent Scaling Events</h3>
+                    <table id="events-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Application</th>
+                                <th>Action</th>
+                                <th>From</th>
+                                <th>To</th>
+                                <th>Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody id="events-tbody">
+                            <tr><td colspan="6">Loading events...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -230,6 +311,384 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeNodeModal()">Close</button>
                 <button class="btn btn-primary" onclick="refreshNodeDetails()">Refresh</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Scaling Policy Modal -->
+    <div id="createPolicyModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Create Auto-Scaling Policy</h3>
+                <span class="close" onclick="closeCreatePolicyModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="policyForm">
+                    <div class="form-group">
+                        <label for="policyApp">Application *</label>
+                        <select id="policyApp" name="application" required>
+                            <option value="">Select Application</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="minReplicas">Min Replicas *</label>
+                            <input type="number" id="minReplicas" name="minReplicas" required min="1" value="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="maxReplicas">Max Replicas *</label>
+                            <input type="number" id="maxReplicas" name="maxReplicas" required min="1" value="5">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="cpuThreshold">CPU Threshold (%) *</label>
+                            <input type="number" id="cpuThreshold" name="cpuThreshold" required min="1" max="100" value="70">
+                        </div>
+                        <div class="form-group">
+                            <label for="memoryThreshold">Memory Threshold (%) *</label>
+                            <input type="number" id="memoryThreshold" name="memoryThreshold" required min="1" max="100" value="80">
+                        </div>
+                    </div>
+                    
+                    <div class="form-section">
+                        <h4>Advanced Options</h4>
+                        <div class="form-group">
+                            <label for="policyType">Policy Type</label>
+                            <select id="policyType" name="policyType" onchange="toggleAdvancedOptions()">
+                                <option value="basic">Basic Threshold</option>
+                                <option value="multi-metric">Multi-Metric</option>
+                            </select>
+                        </div>
+                        
+                        <div id="advancedOptions" style="display: none;">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="scaleUpCooldown">Scale Up Cooldown (seconds)</label>
+                                    <input type="number" id="scaleUpCooldown" name="scaleUpCooldown" value="300">
+                                </div>
+                                <div class="form-group">
+                                    <label for="scaleDownCooldown">Scale Down Cooldown (seconds)</label>
+                                    <input type="number" id="scaleDownCooldown" name="scaleDownCooldown" value="600">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="maxScalePerHour">Max Scaling Actions/Hour</label>
+                                    <input type="number" id="maxScalePerHour" name="maxScalePerHour" value="10">
+                                </div>
+                                <div class="form-group">
+                                    <label for="scaleIncrement">Scale Increment</label>
+                                    <input type="number" id="scaleIncrement" name="scaleIncrement" value="1">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeCreatePolicyModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitCreatePolicy()">Create Policy</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Details Modal -->
+    <div id="appDetailsModal" class="modal" style="display: none;">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="appModalTitle">Application Details</h3>
+                <span class="close" onclick="closeAppDetailsModal()">&times;</span>
+            </div>
+            <div class="modal-body modal-scrollable">
+                <div class="app-details-grid">
+                    <div class="detail-section">
+                        <h4>Basic Information</h4>
+                        <p><strong>Name:</strong> <span id="appName">-</span></p>
+                        <p><strong>Status:</strong> <span id="appStatus">-</span></p>
+                        <p><strong>Replicas:</strong> <span id="appReplicas">-</span></p>
+                        <p><strong>Version:</strong> <span id="appVersion">-</span></p>
+                        <p><strong>Uptime:</strong> <span id="appUptime">-</span></p>
+                        <p><strong>CPU Usage:</strong> <span id="appCpu">-</span></p>
+                        <p><strong>Memory Usage:</strong> <span id="appMemory">-</span></p>
+                        <p><strong>Auto-Scaling:</strong> <span id="appAutoScaling">-</span></p>
+                    </div>
+                    
+                    <div class="detail-section">
+                        <h4>Container Health</h4>
+                        <div id="containerHealth">Loading...</div>
+                    </div>
+                    
+                    <div class="detail-section">
+                        <h4>Auto-Scaling Policy</h4>
+                        <div id="scalingPolicyInfo">Loading...</div>
+                    </div>
+                </div>
+                
+                <div class="detail-section">
+                    <h4>Container Instances</h4>
+                    <table class="details-table">
+                        <thead>
+                            <tr>
+                                <th>Container Name</th>
+                                <th>Status</th>
+                                <th>Ports</th>
+                                <th>Container ID</th>
+                                <th>Created</th>
+                            </tr>
+                        </thead>
+                        <tbody id="containersTable">
+                            <tr><td colspan="5">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="detail-section">
+                    <h4>Recent Scaling Events</h4>
+                    <table class="details-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Action</th>
+                                <th>Replicas</th>
+                                <th>Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentEventsTable">
+                            <tr><td colspan="4">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeAppDetailsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Container Details Modal -->
+    <div id="containerDetailsModal" class="modal" style="display: none;">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="containerModalTitle">Container Details</h3>
+                <span class="close" onclick="closeContainerDetailsModal()">&times;</span>
+            </div>
+            <div class="modal-body modal-scrollable">
+                <div class="app-details-grid">
+                    <div class="detail-section">
+                        <h4>Basic Information</h4>
+                        <p><strong>Name:</strong> <span id="containerName">-</span></p>
+                        <p><strong>ID:</strong> <span id="containerId">-</span></p>
+                        <p><strong>Image:</strong> <span id="containerImage">-</span></p>
+                        <p><strong>Created:</strong> <span id="containerCreated">-</span></p>
+                        <p><strong>Status:</strong> <span id="containerStatus">-</span></p>
+                        <p><strong>Exit Code:</strong> <span id="containerExitCode">-</span></p>
+                        <p><strong>Error:</strong> <span id="containerError">-</span></p>
+                    </div>
+                    
+                    <div class="detail-section">
+                        <h4>Resource Usage</h4>
+                        <div id="containerStats">Loading...</div>
+                    </div>
+                </div>
+                
+                <div class="detail-section">
+                    <h4>Container Logs (Last 50 lines)</h4>
+                    <pre id="containerLogs" style="background: #f8f9fa; padding: 15px; border-radius: 6px; max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px;">Loading...</pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeContainerDetailsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Scheduled Policy Modal -->
+    <div id="createScheduledPolicyModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Create Scheduled Scaling Policy</h3>
+                <span class="close" onclick="closeCreateScheduledPolicyModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="scheduledPolicyForm">
+                    <div class="form-group">
+                        <label for="scheduledApp">Application *</label>
+                        <select id="scheduledApp" name="application" required>
+                            <option value="">Select Application</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="scheduleName">Schedule Name *</label>
+                        <input type="text" id="scheduleName" name="scheduleName" required placeholder="business-hours">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="scheduleTime">Time *</label>
+                            <input type="time" id="scheduleTime" name="scheduleTime" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="targetReplicas">Target Replicas *</label>
+                            <input type="number" id="targetReplicas" name="targetReplicas" required min="1" value="2">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Days of Week *</label>
+                        <div class="checkbox-group">
+                            <label><input type="checkbox" name="days" value="1"> Monday</label>
+                            <label><input type="checkbox" name="days" value="2"> Tuesday</label>
+                            <label><input type="checkbox" name="days" value="3"> Wednesday</label>
+                            <label><input type="checkbox" name="days" value="4"> Thursday</label>
+                            <label><input type="checkbox" name="days" value="5"> Friday</label>
+                            <label><input type="checkbox" name="days" value="6"> Saturday</label>
+                            <label><input type="checkbox" name="days" value="0"> Sunday</label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeCreateScheduledPolicyModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitCreateScheduledPolicy()">Create Schedule</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analytics Modal -->
+    <div id="analyticsModal" class="modal" style="display: none;">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>Auto-Scaling Analytics</h3>
+                <span class="close" onclick="closeAnalyticsModal()">&times;</span>
+            </div>
+            <div class="modal-body modal-scrollable">
+                <div class="analytics-grid">
+                    <div class="analytics-card">
+                        <h4>Scaling Efficiency</h4>
+                        <div class="metric-large" id="efficiencyScore">-</div>
+                        <p>Overall efficiency score</p>
+                    </div>
+                    <div class="analytics-card">
+                        <h4>Total Events (24h)</h4>
+                        <div class="metric-large" id="totalEvents24h">-</div>
+                        <p>Scale up/down actions</p>
+                    </div>
+                    <div class="analytics-card">
+                        <h4>Avg Response Time</h4>
+                        <div class="metric-large" id="avgResponseTime">-</div>
+                        <p>Time to scale action</p>
+                    </div>
+                    <div class="analytics-card clickable" onclick="showCostSavingsModal()">
+                        <h4>Cost Savings</h4>
+                        <div class="metric-large" id="costSavings">-</div>
+                        <p>Estimated savings (click for details)</p>
+                    </div>
+                </div>
+                
+                <div class="table-container">
+                    <h4>Application Analytics</h4>
+                    <table id="app-analytics-table">
+                        <thead>
+                            <tr>
+                                <th>Application</th>
+                                <th>Total Events</th>
+                                <th>Scale Up</th>
+                                <th>Scale Down</th>
+                                <th>Avg Decision Score</th>
+                                <th>Efficiency</th>
+                            </tr>
+                        </thead>
+                        <tbody id="app-analytics-tbody">
+                            <tr><td colspan="6">Loading analytics...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeAnalyticsModal()">Close</button>
+                <button class="btn btn-primary" onclick="refreshAnalytics()">Refresh</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cost Savings Breakdown Modal -->
+    <div id="costSavingsModal" class="modal" style="display: none;">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>Cost Savings Analysis</h3>
+                <span class="close" onclick="closeCostSavingsModal()">&times;</span>
+            </div>
+            <div class="modal-body modal-scrollable">
+                <div class="cost-breakdown">
+                    <h4>How Cost Savings Are Calculated</h4>
+                    <div class="calculation-section">
+                        <h5>Resource Optimization Savings</h5>
+                        <div class="calculation-item">
+                            <span class="calc-label">Scale-down events (24h):</span>
+                            <span class="calc-value" id="scaleDownCount">-</span>
+                            <span class="calc-desc">× $0.05/hour per container = <strong id="scaleDownSavings">$0.00</strong></span>
+                        </div>
+                        <div class="calculation-item">
+                            <span class="calc-label">Prevented over-provisioning:</span>
+                            <span class="calc-value" id="overProvisionHours">-</span>
+                            <span class="calc-desc">hours × $0.02/hour = <strong id="overProvisionSavings">$0.00</strong></span>
+                        </div>
+                    </div>
+                    
+                    <div class="calculation-section">
+                        <h5>Operational Efficiency Savings</h5>
+                        <div class="calculation-item">
+                            <span class="calc-label">Manual scaling prevention:</span>
+                            <span class="calc-value" id="manualPreventionCount">-</span>
+                            <span class="calc-desc">actions × $2.00/action = <strong id="manualPreventionSavings">$0.00</strong></span>
+                        </div>
+                        <div class="calculation-item">
+                            <span class="calc-label">Faster response time:</span>
+                            <span class="calc-value" id="responseTimeSavings">-</span>
+                            <span class="calc-desc">minutes saved × $0.10/min = <strong id="responseTimeCost">$0.00</strong></span>
+                        </div>
+                    </div>
+                    
+                    <div class="calculation-section">
+                        <h5>Total Savings Breakdown (24h)</h5>
+                        <table class="savings-table">
+                            <tr>
+                                <td>Resource optimization</td>
+                                <td id="totalResourceSavings">$0.00</td>
+                            </tr>
+                            <tr>
+                                <td>Operational efficiency</td>
+                                <td id="totalOperationalSavings">$0.00</td>
+                            </tr>
+                            <tr class="total-row">
+                                <td><strong>Total Daily Savings</strong></td>
+                                <td><strong id="totalDailySavings">$0.00</strong></td>
+                            </tr>
+                            <tr class="projection-row">
+                                <td>Monthly projection</td>
+                                <td id="monthlySavings">$0.00</td>
+                            </tr>
+                            <tr class="projection-row">
+                                <td>Annual projection</td>
+                                <td id="annualSavings">$0.00</td>
+                            </tr>
+                        </table>
+                    </div>
+                    
+                    <div class="calculation-section">
+                        <h5>Cost Calculation Methodology</h5>
+                        <ul class="methodology-list">
+                            <li><strong>Container costs:</strong> Based on average cloud provider pricing ($0.05/hour per container)</li>
+                            <li><strong>Manual intervention:</strong> Estimated DevOps time cost ($2.00 per manual scaling action)</li>
+                            <li><strong>Response time:</strong> Business impact of faster scaling response ($0.10 per minute saved)</li>
+                            <li><strong>Over-provisioning:</strong> Cost of running unnecessary containers during low demand</li>
+                            <li><strong>Projections:</strong> Linear extrapolation based on current 24-hour trends</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeCostSavingsModal()">Close</button>
+                <button class="btn btn-primary" onclick="exportCostAnalysis()">Export Analysis</button>
             </div>
         </div>
     </div>

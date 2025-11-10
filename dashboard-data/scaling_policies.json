@@ -1,0 +1,29 @@
+{
+    "test-persistence": {
+        "application": "test-persistence",
+        "minReplicas": 1,
+        "maxReplicas": 3,
+        "cpuThreshold": 60,
+        "memoryThreshold": 70,
+        "enabled": true,
+        "created_at": 1762770379
+    },
+    "auto-test": {
+        "application": "auto-test",
+        "minReplicas": 1,
+        "maxReplicas": 5,
+        "cpuThreshold": 70,
+        "memoryThreshold": 80,
+        "enabled": true,
+        "created_at": 1762770601
+    },
+    "test-suite-app": {
+        "application": "test-suite-app",
+        "minReplicas": 1,
+        "maxReplicas": 4,
+        "cpuThreshold": 75,
+        "memoryThreshold": 85,
+        "enabled": true,
+        "created_at": 1762770895
+    }
+}

@@ -1,0 +1,11 @@
+{
+  "test-app": {
+    "application": "test-app",
+    "minReplicas": 1,
+    "maxReplicas": 3,
+    "cpuThreshold": 75,
+    "memoryThreshold": 85,
+    "enabled": true,
+    "created_at": 1762766984.8122525
+  }
+}

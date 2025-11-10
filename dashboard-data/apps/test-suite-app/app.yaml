@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Application
+metadata:
+  name: test-suite-app
+  version: 1.0.0
+  description: "Deployed via dashboard"
+spec:
+  replicas: 1
+  image: nginx:latest
+  ports:
+    - name: http
+      port: 8080
+      protocol: TCP
+  resources:
+    cpu: 100m
+    memory: 128Mi
+  healthCheck:
+    path: /health
+    port: 8080
+    interval: 30s
+    timeout: 5s
+  environment:
+    - name: LOG_LEVEL
+      value: INFO
+    - name: CLUSTER_MODE
+      value: "true"

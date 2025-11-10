@@ -1,0 +1,6 @@
+2025-11-10 10:34:23 - [SUCCESS] Deployed test-suite-app with image nginx:latest (1 replicas)
+2025-11-10 10:34:38 - [SUCCESS] Scaled test-suite-app to 2 replicas
+2025-11-10 10:36:45 - [SUCCESS] Paused application test-suite-app
+2025-11-10 10:36:55 - [SUCCESS] Resumed application test-suite-app
+2025-11-10 10:37:40 - [SUCCESS] Stopped application test-suite-app
+2025-11-10 10:37:51 - [SUCCESS] Scaled test-suite-app to 1 replicas

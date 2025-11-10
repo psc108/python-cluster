@@ -4,6 +4,9 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
+// Include Phase 3 functions
+require_once __DIR__ . '/phase3_functions.php';
+
 // Handle preflight requests
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
@@ -49,9 +52,90 @@ switch ($action) {
     case 'resource_info':
         echo json_encode(getResourceInfo());
         break;
+    case 'create_scaling_policy':
+        $input = json_decode(file_get_contents('php://input'), true);
+        
+        if (!isset($input['application']) || !isset($input['minReplicas']) || !isset($input['maxReplicas'])) {
+            echo json_encode(['success' => false, 'error' => 'Missing required fields']);
+            break;
+        }
+        
+        $policy = [
+            'application' => $input['application'],
+            'minReplicas' => (int)$input['minReplicas'],
+            'maxReplicas' => (int)$input['maxReplicas'],
+            'cpuThreshold' => (int)($input['cpuThreshold'] ?? 70),
+            'memoryThreshold' => (int)($input['memoryThreshold'] ?? 80),
+            'enabled' => true,
+            'created_at' => time()
+        ];
+        
+        $policies_file = '/var/www/html/data/scaling_policies.json';
+        $policies = [];
+        
+        if (file_exists($policies_file)) {
+            $policies = json_decode(file_get_contents($policies_file), true) ?: [];
+        }
+        
+        if (!file_exists('/var/www/html/data')) {
+            mkdir('/var/www/html/data', 0755, true);
+        }
+        
+        $policies[$input['application']] = $policy;
+        file_put_contents($policies_file, json_encode($policies, JSON_PRETTY_PRINT));
+        
+        echo json_encode(['success' => true, 'policy' => $policy]);
+        break;
+    case 'get_scaling_policies':
+        $policies_file = '/var/www/html/data/scaling_policies.json';
+        
+        if (!file_exists($policies_file)) {
+            echo json_encode([]);
+            break;
+        }
+        
+        $policies = json_decode(file_get_contents($policies_file), true) ?: [];
+        echo json_encode($policies);
+        break;
+    case 'scaling_events':
+        echo json_encode(getScalingEvents());
+        break;
+    case 'evaluate_scaling':
+        echo json_encode(evaluateScaling());
+        break;
+    case 'app_details':
+        echo json_encode(getApplicationDetails());
+        break;
+    case 'container_details':
+        echo json_encode(getContainerDetails());
+        break;
+    case 'get_scheduled_policies':
+        echo json_encode(getScheduledPolicies());
+        break;
+    case 'create_scheduled_policy':
+        echo json_encode(handleCreateScheduledPolicy());
+        break;
+    case 'delete_scheduled_policy':
+        echo json_encode(handleDeleteScheduledPolicy());
+        break;
+    case 'schedule_history':
+        echo json_encode(getScheduleHistory());
+        break;
+    case 'schedule_summary':
+        echo json_encode(getScheduleSummary());
+        break;
+    case 'scaling_analytics':
+        echo json_encode(getScalingAnalytics());
+        break;
+    case 'cost_savings_breakdown':
+        echo json_encode(getCostSavingsBreakdown());
+        break;
+    case 'test_action':
+        echo json_encode(['success' => true, 'message' => 'Test action works']);
+        break;
     default:
         http_response_code(400);
-        echo json_encode(['error' => 'Invalid action']);
+        echo json_encode(['error' => 'Invalid action', 'received' => $action]);
 }
 
 function makeClusterRequest($endpoint, $timeout = 5) {
@@ -202,14 +286,28 @@ function getApplications() {
                     $status = 'paused';
                 }
                 
+                // Check if auto-scaling is enabled
+                $autoScaling = hasAutoScalingPolicy($app_name);
+                
+                // Get actual resource metrics from containers
+                $cpu_percent = 0;
+                $memory_mb = 0;
+                
+                if ($app_data['running'] > 0) {
+                    $metrics = getApplicationMetrics($app_name);
+                    $cpu_percent = $metrics['cpu_percent'];
+                    $memory_mb = $metrics['memory_mb'];
+                }
+                
                 $applications[] = [
                     'name' => $app_name,
                     'status' => $status,
                     'replicas' => $app_data['running'] . '/' . $app_data['total'],
-                    'version' => '1.0.0',
-                    'cpu_percent' => $app_data['running'] > 0 ? rand(5, 25) : 0,
-                    'memory_mb' => $app_data['running'] > 0 ? rand(50, 200) : 0,
-                    'uptime' => getApplicationUptime($app_name)
+                    'version' => getApplicationVersion($app_name),
+                    'cpu_percent' => $cpu_percent,
+                    'memory_mb' => $memory_mb,
+                    'uptime' => getApplicationUptime($app_name),
+                    'autoScaling' => $autoScaling
                 ];
             }
         }
@@ -404,22 +502,37 @@ function detectClusterStartTime() {
 }
 
 function getNodeUptime($node_id) {
-    // Get actual container start time using Docker API simulation
-    // In a real implementation, this would query Docker API
-    // For now, calculate based on when cluster was last started
-    
-    $uptime_file = '/var/www/html/data/node_' . $node_id . '_start.txt';
-    
-    if (!file_exists($uptime_file)) {
-        // Record current time as node start time
-        file_put_contents($uptime_file, time());
+    try {
+        // Get actual container start time from Docker
+        $container_name = "cluster-node-{$node_id}";
+        $docker_inspect = shell_exec("sudo docker inspect {$container_name} --format '{{.State.StartedAt}}' 2>/dev/null");
+        
+        if ($docker_inspect && trim($docker_inspect)) {
+            $start_time_str = trim($docker_inspect);
+            $start_time = strtotime($start_time_str);
+            
+            if ($start_time) {
+                $uptime_seconds = time() - $start_time;
+                return formatUptime($uptime_seconds);
+            }
+        }
+        
+        // Fallback: use file-based tracking
+        $uptime_file = '/var/www/html/data/node_' . $node_id . '_start.txt';
+        
+        if (!file_exists($uptime_file)) {
+            file_put_contents($uptime_file, time());
+            return '0m';
+        }
+        
+        $start_time = (int)file_get_contents($uptime_file);
+        $uptime_seconds = time() - $start_time;
+        
+        return formatUptime($uptime_seconds);
+        
+    } catch (Exception $e) {
         return '0m';
     }
-    
-    $start_time = (int)file_get_contents($uptime_file);
-    $uptime_seconds = time() - $start_time;
-    
-    return formatUptime($uptime_seconds);
 }
 
 function handleScaleApplication() {
@@ -432,16 +545,203 @@ function handleScaleApplication() {
     $app_name = $input['application'];
     $replicas = (int)$input['replicas'];
     
+    // Execute actual scaling
+    $result = scaleApplicationContainers($app_name, $replicas);
+    
     // Log the scaling operation
-    $log_entry = date('Y-m-d H:i:s') . " - Scaled {$app_name} to {$replicas} replicas\n";
+    $status = $result['success'] ? 'SUCCESS' : 'FAILED';
+    $log_entry = date('Y-m-d H:i:s') . " - [{$status}] Scaled {$app_name} to {$replicas} replicas\n";
     file_put_contents('/var/www/html/data/operations.log', $log_entry, FILE_APPEND);
     
-    // TODO: Implement actual cluster API call for scaling
-    return [
-        'success' => true,
-        'message' => "Application {$app_name} scaled to {$replicas} replicas",
-        'timestamp' => time()
-    ];
+    return $result;
+}
+
+function scaleApplicationContainers($app_name, $target_replicas) {
+    try {
+        // Get all containers (running and stopped)
+        $all_output = shell_exec("sudo docker ps -a --filter \"name=app-{$app_name}-\" --format \"{{.Names}}\t{{.Status}}\" 2>/dev/null");
+        $running_containers = [];
+        $all_containers = [];
+        
+        if ($all_output) {
+            $lines = explode("\n", trim($all_output));
+            foreach ($lines as $line) {
+                if (empty($line)) continue;
+                $parts = explode("\t", $line);
+                if (count($parts) >= 2) {
+                    $name = $parts[0];
+                    $status = $parts[1];
+                    $all_containers[] = $name;
+                    if (strpos($status, 'Up') === 0) {
+                        $running_containers[] = $name;
+                    }
+                }
+            }
+        }
+        
+        $current_running = count($running_containers);
+        
+        if ($target_replicas > $current_running) {
+            // Scale up: start stopped containers first, then create new ones
+            $needed = $target_replicas - $current_running;
+            $started = [];
+            
+            // Start stopped containers first
+            $stopped_containers = array_diff($all_containers, $running_containers);
+            foreach ($stopped_containers as $container_name) {
+                if ($needed <= 0) break;
+                $start_output = shell_exec("sudo docker start {$container_name} 2>&1");
+                if (strpos($start_output, 'Error') === false) {
+                    $started[] = $container_name;
+                    $needed--;
+                }
+            }
+            
+            // Create new containers if still needed
+            if ($needed > 0) {
+                $image = getApplicationImage($app_name) ?: 'nginx:latest';
+                $used_ports = getUsedPorts();
+                $base_port = 10000;
+                
+                // Find highest existing container number
+                $max_id = 0;
+                foreach ($all_containers as $container_name) {
+                    if (preg_match('/-([0-9]+)$/', $container_name, $matches)) {
+                        $max_id = max($max_id, (int)$matches[1]);
+                    }
+                }
+                
+                for ($i = 1; $i <= $needed; $i++) {
+                    $next_id = $max_id + $i;
+                    $instance_name = "app-{$app_name}-{$next_id}";
+                    
+                    // Find available port
+                    $instance_port = $base_port;
+                    while (in_array($instance_port, $used_ports)) {
+                        $instance_port++;
+                    }
+                    $used_ports[] = $instance_port;
+                    
+                    $run_cmd = "sudo docker run -d --name {$instance_name} -p {$instance_port}:8080 {$image} 2>&1";
+                    $run_output = shell_exec($run_cmd);
+                    
+                    if (strpos($run_output, 'Error') === false && strlen(trim($run_output)) > 10) {
+                        $started[] = $instance_name;
+                    }
+                }
+            }
+            
+            return [
+                'success' => count($started) > 0,
+                'message' => "Scaled up {$app_name} to {$target_replicas} replicas",
+                'started_containers' => $started,
+                'timestamp' => time()
+            ];
+            
+        } elseif ($target_replicas < $current_running) {
+            // Scale down: stop highest numbered containers
+            $to_stop = $current_running - $target_replicas;
+            $stopped = [];
+            
+            // Sort by container number (highest first)
+            usort($running_containers, function($a, $b) {
+                preg_match('/-([0-9]+)$/', $a, $matches_a);
+                preg_match('/-([0-9]+)$/', $b, $matches_b);
+                $num_a = isset($matches_a[1]) ? (int)$matches_a[1] : 0;
+                $num_b = isset($matches_b[1]) ? (int)$matches_b[1] : 0;
+                return $num_b - $num_a;
+            });
+            
+            for ($i = 0; $i < $to_stop; $i++) {
+                $container_name = $running_containers[$i];
+                $stop_output = shell_exec("sudo docker stop {$container_name} 2>&1");
+                if (strpos($stop_output, 'Error') === false) {
+                    $stopped[] = $container_name;
+                }
+            }
+            
+            return [
+                'success' => count($stopped) > 0,
+                'message' => "Scaled down {$app_name} to {$target_replicas} replicas",
+                'stopped_containers' => $stopped,
+                'timestamp' => time()
+            ];
+        }
+        
+        return [
+            'success' => true,
+            'message' => "Application {$app_name} already at {$target_replicas} replicas",
+            'timestamp' => time()
+        ];
+        
+    } catch (Exception $e) {
+        return [
+            'success' => false,
+            'error' => $e->getMessage(),
+            'timestamp' => time()
+        ];
+    }
+}
+
+
+
+function getApplicationImage($app_name) {
+    $containers_output = shell_exec("sudo docker ps -a --filter \"name=app-{$app_name}-\" --format \"{{.Image}}\" 2>/dev/null | head -1");
+    return trim($containers_output) ?: null;
+}
+
+function getApplicationVersion($app_name) {
+    $app_yaml_file = "/var/www/html/data/apps/{$app_name}/app.yaml";
+    
+    if (file_exists($app_yaml_file)) {
+        $yaml_content = file_get_contents($app_yaml_file);
+        if (preg_match('/version:\s*([^\n]+)/', $yaml_content, $matches)) {
+            return trim($matches[1]);
+        }
+    }
+    
+    // Fallback: extract from image tag
+    $image = getApplicationImage($app_name);
+    if ($image && strpos($image, ':') !== false) {
+        $parts = explode(':', $image);
+        return end($parts);
+    }
+    
+    return 'unknown';
+}
+
+function getApplicationMemoryLimit($app_name) {
+    $app_yaml_file = "/var/www/html/data/apps/{$app_name}/app.yaml";
+    
+    if (file_exists($app_yaml_file)) {
+        $yaml_content = file_get_contents($app_yaml_file);
+        if (preg_match('/memory:\s*([^\n]+)/', $yaml_content, $matches)) {
+            $memory_str = trim($matches[1]);
+            
+            // Convert memory string to MB
+            if (preg_match('/(\d+)([KMGT]?i?)/', $memory_str, $mem_matches)) {
+                $value = (int)$mem_matches[1];
+                $unit = strtoupper($mem_matches[2]);
+                
+                switch ($unit) {
+                    case 'GI':
+                    case 'G':
+                        return $value * 1024;
+                    case 'MI':
+                    case 'M':
+                        return $value;
+                    case 'KI':
+                    case 'K':
+                        return $value / 1024;
+                    default:
+                        return $value; // Assume MB if no unit
+                }
+            }
+        }
+    }
+    
+    // Default memory limit if not specified
+    return 128; // 128MB default
 }
 
 function handleStopApplication() {
@@ -1032,6 +1332,443 @@ function getNodeDetails() {
             'heartbeats' => 'N/A',
             'elections' => 'N/A'
         ];
+    }
+}
+
+// Auto-scaling functions - routed to Python service
+
+function getScalingEvents() {
+    $events_file = '/var/www/html/data/scaling_events.json';
+    
+    if (!file_exists($events_file)) {
+        return [];
+    }
+    
+    $events = json_decode(file_get_contents($events_file), true) ?: [];
+    return array_slice($events, -50); // Return last 50 events
+}
+
+function hasAutoScalingPolicy($app_name) {
+    $policies_file = '/var/www/html/data/scaling_policies.json';
+    
+    if (!file_exists($policies_file)) {
+        return false;
+    }
+    
+    $policies = json_decode(file_get_contents($policies_file), true) ?: [];
+    return isset($policies[$app_name]) && $policies[$app_name]['enabled'];
+}
+
+function evaluateScaling() {
+    $policies_file = '/var/www/html/data/scaling_policies.json';
+    
+    if (!file_exists($policies_file)) {
+        return ['actions' => []];
+    }
+    
+    $policies = json_decode(file_get_contents($policies_file), true) ?: [];
+    $scaling_actions = [];
+    
+    foreach ($policies as $app_name => $policy) {
+        if (!$policy['enabled']) continue;
+        
+        $action = evaluateScalingPolicy($app_name, $policy);
+        if ($action) {
+            $scaling_actions[] = $action;
+        }
+    }
+    
+    return ['actions' => $scaling_actions];
+}
+
+function evaluateScalingPolicy($app_name, $policy) {
+    // Get current application metrics
+    $apps = getApplications();
+    $app = null;
+    
+    foreach ($apps as $a) {
+        if ($a['name'] === $app_name) {
+            $app = $a;
+            break;
+        }
+    }
+    
+    if (!$app) {
+        return null;
+    }
+    
+    // Parse current replicas
+    $replicas_parts = explode('/', $app['replicas']);
+    $current_replicas = (int)$replicas_parts[0];
+    $desired_replicas = (int)$replicas_parts[1];
+    
+    // Check for failed containers that need replacement
+    $container_health = checkContainerHealth($app_name);
+    if ($container_health['failed_containers'] > 0 && $current_replicas < $desired_replicas) {
+        return executeScalingAction($app_name, $desired_replicas, 'replace_failed', 'Replacing failed containers');
+    }
+    
+    // Skip other scaling if app is not running
+    if ($app['status'] !== 'running') {
+        return null;
+    }
+    
+    // Check cooldown (5 minutes)
+    if (isInCooldown($app_name)) {
+        return null;
+    }
+    
+    // Get memory threshold in MB (convert percentage to actual MB based on container limits)
+    $memory_limit_mb = getApplicationMemoryLimit($app_name);
+    $memory_threshold_mb = ($policy['memoryThreshold'] / 100) * $memory_limit_mb;
+    $memory_scale_down_mb = (($policy['memoryThreshold'] - 20) / 100) * $memory_limit_mb;
+    
+    // Scale up conditions
+    if (($app['cpu_percent'] > $policy['cpuThreshold'] || $app['memory_mb'] > $memory_threshold_mb) && 
+        $current_replicas < $policy['maxReplicas']) {
+        
+        $target_replicas = min($current_replicas + 1, $policy['maxReplicas']);
+        return executeScalingAction($app_name, $target_replicas, 'scale_up', 'High resource usage');
+    }
+    
+    // Scale down conditions
+    if (($app['cpu_percent'] < ($policy['cpuThreshold'] - 20) && $app['memory_mb'] < $memory_scale_down_mb) && 
+        $current_replicas > $policy['minReplicas']) {
+        
+        $target_replicas = max($current_replicas - 1, $policy['minReplicas']);
+        return executeScalingAction($app_name, $target_replicas, 'scale_down', 'Low resource usage');
+    }
+    
+    return null;
+}
+
+function executeScalingAction($app_name, $target_replicas, $action, $reason) {
+    // Record scaling event
+    recordScalingEvent($app_name, $action, $target_replicas, $reason);
+    
+    // Set cooldown
+    setCooldown($app_name);
+    
+    // Execute actual scaling by adjusting container count
+    $scale_result = scaleApplicationContainers($app_name, $target_replicas);
+    
+    return [
+        'application' => $app_name,
+        'action' => $action,
+        'target_replicas' => $target_replicas,
+        'reason' => $reason,
+        'success' => $scale_result['success'] ?? false,
+        'timestamp' => time()
+    ];
+}
+
+function recordScalingEvent($app_name, $action, $replicas, $reason) {
+    $events_file = '/var/www/html/data/scaling_events.json';
+    $events = [];
+    
+    if (file_exists($events_file)) {
+        $events = json_decode(file_get_contents($events_file), true) ?: [];
+    }
+    
+    $events[] = [
+        'application' => $app_name,
+        'action' => $action,
+        'replicas' => $replicas,
+        'reason' => $reason,
+        'timestamp' => time()
+    ];
+    
+    // Keep only last 100 events
+    if (count($events) > 100) {
+        $events = array_slice($events, -100);
+    }
+    
+    file_put_contents($events_file, json_encode($events, JSON_PRETTY_PRINT));
+}
+
+function isInCooldown($app_name) {
+    $cooldown_file = '/var/www/html/data/cooldowns.json';
+    
+    if (!file_exists($cooldown_file)) {
+        return false;
+    }
+    
+    $cooldowns = json_decode(file_get_contents($cooldown_file), true) ?: [];
+    
+    if (!isset($cooldowns[$app_name])) {
+        return false;
+    }
+    
+    return (time() - $cooldowns[$app_name]) < 300; // 5 minute cooldown
+}
+
+function setCooldown($app_name) {
+    $cooldown_file = '/var/www/html/data/cooldowns.json';
+    $cooldowns = [];
+    
+    if (file_exists($cooldown_file)) {
+        $cooldowns = json_decode(file_get_contents($cooldown_file), true) ?: [];
+    }
+    
+    $cooldowns[$app_name] = time();
+    file_put_contents($cooldown_file, json_encode($cooldowns, JSON_PRETTY_PRINT));
+}
+
+function getApplicationDetails() {
+    $app_name = $_GET['app_name'] ?? '';
+    
+    if (empty($app_name)) {
+        return ['error' => 'Application name required'];
+    }
+    
+    try {
+        // Get basic app info
+        $apps = getApplications();
+        $app = null;
+        foreach ($apps as $a) {
+            if ($a['name'] === $app_name) {
+                $app = $a;
+                break;
+            }
+        }
+        
+        if (!$app) {
+            return ['error' => 'Application not found'];
+        }
+        
+        // Get container details
+        $containers = [];
+        $containers_output = shell_exec("sudo docker ps -a --filter \"name=app-{$app_name}-\" --format \"{{.Names}}\t{{.Status}}\t{{.Image}}\t{{.Ports}}\t{{.CreatedAt}}\t{{.ID}}\" 2>/dev/null");
+        
+        if ($containers_output) {
+            $lines = explode("\n", trim($containers_output));
+            foreach ($lines as $line) {
+                if (empty($line)) continue;
+                $parts = explode("\t", $line);
+                if (count($parts) >= 6) {
+                    $containers[] = [
+                        'name' => $parts[0],
+                        'status' => $parts[1],
+                        'image' => $parts[2],
+                        'ports' => $parts[3],
+                        'created' => $parts[4],
+                        'id' => substr($parts[5], 0, 12)
+                    ];
+                }
+            }
+        }
+        
+        // Get scaling policy if exists
+        $scaling_policy = null;
+        $policies_file = '/var/www/html/data/scaling_policies.json';
+        if (file_exists($policies_file)) {
+            $policies = json_decode(file_get_contents($policies_file), true) ?: [];
+            $scaling_policy = $policies[$app_name] ?? null;
+        }
+        
+        // Get deployment info
+        $deployment_info = [];
+        $app_dir = "/var/www/html/data/apps/{$app_name}";
+        if (file_exists("{$app_dir}/app.yaml")) {
+            $yaml_content = file_get_contents("{$app_dir}/app.yaml");
+            $deployment_info['yaml'] = $yaml_content;
+        }
+        if (file_exists("{$app_dir}/deployed_at.txt")) {
+            $deployed_at = (int)file_get_contents("{$app_dir}/deployed_at.txt");
+            $deployment_info['deployed_at'] = date('Y-m-d H:i:s', $deployed_at);
+        }
+        
+        // Get recent scaling events
+        $recent_events = [];
+        $events_file = '/var/www/html/data/scaling_events.json';
+        if (file_exists($events_file)) {
+            $events = json_decode(file_get_contents($events_file), true) ?: [];
+            foreach ($events as $event) {
+                if ($event['application'] === $app_name) {
+                    $recent_events[] = $event;
+                }
+            }
+            $recent_events = array_slice(array_reverse($recent_events), 0, 5);
+        }
+        
+        return [
+            'application' => $app,
+            'containers' => $containers,
+            'scaling_policy' => $scaling_policy,
+            'deployment_info' => $deployment_info,
+            'recent_events' => $recent_events
+        ];
+        
+    } catch (Exception $e) {
+        return ['error' => $e->getMessage()];
+    }
+}
+
+// Modified handleScaleApplication to accept array parameter
+function checkContainerHealth($app_name) {
+    $failed_containers = 0;
+    $total_containers = 0;
+    $failed_details = [];
+    
+    try {
+        // Get all containers for this application (including stopped ones)
+        $containers_output = shell_exec("sudo docker ps -a --filter \"name=app-{$app_name}-\" --format \"{{.Names}}\t{{.Status}}\t{{.ExitCode}}\" 2>/dev/null");
+        
+        if ($containers_output) {
+            $lines = explode("\n", trim($containers_output));
+            foreach ($lines as $line) {
+                if (empty($line)) continue;
+                $parts = explode("\t", $line);
+                if (count($parts) >= 2) {
+                    $container_name = $parts[0];
+                    $status = $parts[1];
+                    $exit_code = $parts[2] ?? '';
+                    
+                    $total_containers++;
+                    
+                    // Check if container has failed (exited with non-zero code or unhealthy)
+                    if (strpos($status, 'Exited') === 0) {
+                        $failed_containers++;
+                        $failed_details[] = [
+                            'name' => $container_name,
+                            'status' => $status,
+                            'exit_code' => $exit_code
+                        ];
+                    }
+                }
+            }
+        }
+        
+        return [
+            'failed_containers' => $failed_containers,
+            'total_containers' => $total_containers,
+            'failed_details' => $failed_details
+        ];
+        
+    } catch (Exception $e) {
+        return [
+            'failed_containers' => 0,
+            'total_containers' => 0,
+            'failed_details' => []
+        ];
+    }
+}
+
+function getApplicationMetrics($app_name) {
+    try {
+        $cpu_total = 0;
+        $memory_total = 0;
+        $container_count = 0;
+        
+        // Get stats for all running containers of this application
+        $containers_output = shell_exec("sudo docker ps --filter \"name=app-{$app_name}-\" --format \"{{.Names}}\" 2>/dev/null");
+        
+        if ($containers_output) {
+            $container_names = explode("\n", trim($containers_output));
+            
+            foreach ($container_names as $container_name) {
+                if (empty($container_name)) continue;
+                
+                // Get container stats
+                $stats_output = shell_exec("sudo docker stats {$container_name} --no-stream --format \"{{.CPUPerc}},{{.MemUsage}}\" 2>/dev/null");
+                
+                if ($stats_output) {
+                    $stats = explode(',', trim($stats_output));
+                    if (count($stats) >= 2) {
+                        // Parse CPU percentage
+                        $cpu_str = str_replace('%', '', $stats[0]);
+                        if (is_numeric($cpu_str)) {
+                            $cpu_total += (float)$cpu_str;
+                        }
+                        
+                        // Parse memory usage (extract MB value)
+                        if (preg_match('/(\d+(?:\.\d+)?)([KMGT]?i?B)/', $stats[1], $matches)) {
+                            $value = (float)$matches[1];
+                            $unit = strtoupper($matches[2]);
+                            
+                            switch ($unit) {
+                                case 'GB':
+                                case 'GIB':
+                                    $memory_total += $value * 1024;
+                                    break;
+                                case 'MB':
+                                case 'MIB':
+                                    $memory_total += $value;
+                                    break;
+                                case 'KB':
+                                case 'KIB':
+                                    $memory_total += $value / 1024;
+                                    break;
+                            }
+                        }
+                        
+                        $container_count++;
+                    }
+                }
+            }
+        }
+        
+        return [
+            'cpu_percent' => $container_count > 0 ? round($cpu_total / $container_count, 1) : 0,
+            'memory_mb' => round($memory_total)
+        ];
+        
+    } catch (Exception $e) {
+        return [
+            'cpu_percent' => 0,
+            'memory_mb' => 0
+        ];
+    }
+}
+
+function getContainerDetails() {
+    $container_name = $_GET['container_name'] ?? '';
+    
+    if (empty($container_name)) {
+        return ['error' => 'Container name required'];
+    }
+    
+    try {
+        // Get container inspect information
+        $inspect_output = shell_exec("sudo docker inspect {$container_name} 2>/dev/null");
+        $inspect_data = json_decode($inspect_output, true);
+        
+        if (!$inspect_data || empty($inspect_data)) {
+            return ['error' => 'Container not found'];
+        }
+        
+        $container = $inspect_data[0];
+        
+        // Get container logs (last 50 lines)
+        $logs_output = shell_exec("sudo docker logs --tail 50 {$container_name} 2>&1");
+        
+        // Get container stats if running
+        $stats = null;
+        if ($container['State']['Running']) {
+            $stats_output = shell_exec("sudo docker stats {$container_name} --no-stream --format \"{{.CPUPerc}},{{.MemUsage}},{{.NetIO}},{{.BlockIO}}\" 2>/dev/null");
+            if ($stats_output) {
+                $stats_parts = explode(',', trim($stats_output));
+                $stats = [
+                    'cpu' => $stats_parts[0] ?? '0%',
+                    'memory' => $stats_parts[1] ?? '0B / 0B',
+                    'network' => $stats_parts[2] ?? '0B / 0B',
+                    'block_io' => $stats_parts[3] ?? '0B / 0B'
+                ];
+            }
+        }
+        
+        return [
+            'name' => $container['Name'],
+            'id' => $container['Id'],
+            'image' => $container['Config']['Image'],
+            'state' => $container['State'],
+            'created' => $container['Created'],
+            'logs' => $logs_output ?: 'No logs available',
+            'stats' => $stats
+        ];
+        
+    } catch (Exception $e) {
+        return ['error' => $e->getMessage()];
     }
 }
 ?>
