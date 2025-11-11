@@ -14,21 +14,21 @@ from advanced_autoscaler import AdvancedAutoScaler
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("🚀 STARTING ADVANCED AUTO-SCALER (Phase 3)")
+    print("STARTING ADVANCED AUTO-SCALER (Phase 3)")
     print("=" * 60)
     print("Features:")
-    print("  ✅ Schedule-based scaling")
-    print("  ✅ Multi-metric scaling decisions") 
-    print("  ✅ Advanced cooldown and rate limiting")
-    print("  ✅ Scaling history analytics")
-    print("  ✅ Container health monitoring")
+    print("  - Schedule-based scaling")
+    print("  - Multi-metric scaling decisions") 
+    print("  - Advanced cooldown and rate limiting")
+    print("  - Scaling history analytics")
+    print("  - Container health monitoring")
     print("=" * 60)
     
     try:
         scaler = AdvancedAutoScaler()
         scaler.start()
     except KeyboardInterrupt:
-        print("\n🛑 Advanced Auto-Scaler stopped by user")
+        print("\nAdvanced Auto-Scaler stopped by user")
     except Exception as e:
-        print(f"\n❌ Error starting Advanced Auto-Scaler: {e}")
+        print(f"\nError starting Advanced Auto-Scaler: {e}")
         sys.exit(1)

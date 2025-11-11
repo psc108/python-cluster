@@ -31,25 +31,30 @@ Distributed clustering system with leader election, application management, and 
 
 ## Quick Start
 
-### Start the Cluster
+### One-Command Startup
 ```bash
+# Start complete cluster system (nodes + dashboard + auto-scaler + ML services)
+python start-cluster.py
+```
+
+### One-Command Shutdown
+```bash
+# Stop complete cluster system
+python stop-cluster.py
+```
+
+### Manual Startup (Advanced)
+```bash
+# Setup dependencies
+python scripts/setup_dependencies.py
+
 # Start cluster nodes
 python docker/scripts/cluster_manager.py start
 
-# Start dashboard with persistent storage (RECOMMENDED)
+# Start dashboard with persistent storage
 start-dashboard.bat
 
-# Or manually with persistent storage:
-docker run -d -p 8080:80 \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v "%cd%/dashboard-data:/var/www/html/data" \
-  -e CLUSTER_API_URL=http://host.docker.internal:8001 \
-  --name cluster-dashboard cluster-dashboard:latest
-
-# Start basic auto-scaler (Phase 2)
-python scripts/start_autoscaler.py
-
-# Or start advanced auto-scaler (Phase 3 - RECOMMENDED)
+# Start advanced auto-scaler
 python scripts/start_advanced_autoscaler.py
 ```
 
@@ -107,15 +112,19 @@ curl -X POST http://localhost:8080/api/cluster.php?action=deploy \
 - **Node**: Cluster node with HTTP API and consensus
 - **Dashboard**: Web interface for cluster management with persistent storage
 - **Auto-Scaler**: Service for automatic scaling decisions
+- **ML Data Collector**: Continuous metrics collection for ML training (runs automatically)
+- **ML Prediction Service**: Continuous ML predictions every 5 minutes (runs automatically)
 - **Applications**: Containerized workloads managed by cluster
 
 ### Auto-Scaling Flow
 1. **Policy Creation**: Define scaling rules via dashboard
-2. **Metrics Collection**: Monitor CPU/memory usage
-3. **Policy Evaluation**: Auto-scaler checks thresholds every minute
-4. **Scaling Actions**: Trigger scale up/down based on conditions
-5. **Container Health**: Automatic replacement of failed containers
-6. **Cooldown**: Prevent rapid scaling oscillations
+2. **Continuous Data Collection**: ML collector gathers metrics every 5 minutes automatically
+3. **ML Training**: Models train automatically on collected data
+4. **Predictive Analysis**: ML service generates predictions every 5 minutes
+5. **Policy Evaluation**: Auto-scaler checks thresholds and ML predictions
+6. **Scaling Actions**: Trigger scale up/down based on conditions and predictions
+7. **Container Health**: Automatic replacement of failed containers
+8. **Cooldown**: Prevent rapid scaling oscillations
 
 ### Persistent Storage
 - **Dashboard Data**: `/dashboard-data` directory on host

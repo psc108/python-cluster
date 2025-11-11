@@ -128,74 +128,224 @@
                     <button class="btn btn-info" onclick="showAnalyticsModal()">View Analytics</button>
                 </div>
                 
-                <div class="cards-grid">
-                    <div class="card">
-                        <h3>Scaling Overview</h3>
-                        <div id="scaling-summary">
-                            <p><strong>Active Policies:</strong> <span id="active-policies">-</span></p>
-                            <p><strong>Auto-Scaled Apps:</strong> <span id="autoscaled-apps">-</span></p>
-                            <p><strong>Recent Actions:</strong> <span id="recent-actions">-</span></p>
+                <!-- ML PREDICTIVE SCALING SECTION -->
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                    <h3 style="color: white; margin-bottom: 15px;">🤖 ML Predictive Scaling</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        <div>
+                            <p><strong>ML Policies:</strong> <span id="ml-policies-count">0</span></p>
+                            <p><strong>Training Data Points:</strong> <span id="training-data-points">0</span></p>
                         </div>
+                        <div>
+                            <p><strong>Models Trained:</strong> <span id="models-trained">0</span></p>
+                            <p><strong>Last Prediction:</strong> <span id="last-prediction">None</span></p>
+                        </div>
+                        <div>
+                            <p><strong>Prediction Accuracy:</strong> <span id="prediction-accuracy">N/A</span></p>
+                            <p><strong>Data Collection:</strong> <span id="data-collection-status">Inactive</span></p>
+                        </div>
+                    </div>
+                    <div style="margin-top: 15px;">
+                        <button class="btn" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3);" onclick="showCreateMLPolicyModal()">Create ML Policy</button>
+                        <button class="btn" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); margin-left: 10px;" onclick="showMLAnalyticsModal()">ML Analytics</button>
+                        <button class="btn" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); margin-left: 10px;" onclick="showMultiHorizonPredictions()">Multi-Horizon</button>
+                        <button class="btn" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); margin-left: 10px;" onclick="showAnomalyDetection()">Anomaly Detection</button>
+                        <button class="btn" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); margin-left: 10px;" onclick="showPredictionService()">Prediction Service</button>
+                        <button class="btn" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); margin-left: 10px;" onclick="showModelWeightsConfig()">Configure Weights</button>
+                        <button class="btn" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); margin-left: 10px;" onclick="showAutoRetrainingConfig()">Auto-Retrain Config</button>
+                        <button class="btn" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); margin-left: 10px;" onclick="showProactiveScalingConfig()">Proactive Scaling</button>
                     </div>
                 </div>
                 
-                <div class="table-container">
-                    <h3>Scaling Policies</h3>
-                    <table id="policies-table">
-                        <thead>
-                            <tr>
-                                <th>Application</th>
-                                <th>Type</th>
-                                <th>Min/Max Replicas</th>
-                                <th>Thresholds</th>
-                                <th>Cooldown</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="policies-tbody">
-                            <tr><td colspan="7">Loading policies...</td></tr>
-                        </tbody>
-                    </table>
+                <!-- Auto-Scaling Sub-tabs -->
+                <div class="sub-nav-tabs" style="display: flex; background: #f8f9fa; border-radius: 8px; padding: 3px; margin-bottom: 20px; border: 1px solid #e9ecef;">
+                    <button class="sub-tab-button active" onclick="showAutoScalingSubTab('policies')" style="flex: 1; padding: 10px 15px; border: none; background: #3498db; color: white; font-size: 0.9rem; font-weight: 500; cursor: pointer; border-radius: 6px; margin-right: 3px;">Policies</button>
+                    <button class="sub-tab-button" onclick="showAutoScalingSubTab('ml')" style="flex: 1; padding: 10px 15px; border: none; background: transparent; color: #6c757d; font-size: 0.9rem; font-weight: 500; cursor: pointer; border-radius: 6px; margin-right: 3px;">ML Predictive</button>
+                    <button class="sub-tab-button" onclick="showAutoScalingSubTab('events')" style="flex: 1; padding: 10px 15px; border: none; background: transparent; color: #6c757d; font-size: 0.9rem; font-weight: 500; cursor: pointer; border-radius: 6px;">Events</button>
                 </div>
                 
-                <div class="table-container">
-                    <h3>Scheduled Policies</h3>
-                    <table id="scheduled-policies-table">
-                        <thead>
-                            <tr>
-                                <th>Application</th>
-                                <th>Schedule Name</th>
-                                <th>Time</th>
-                                <th>Days</th>
-                                <th>Target Replicas</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="scheduled-policies-tbody">
-                            <tr><td colspan="7">Loading scheduled policies...</td></tr>
-                        </tbody>
-                    </table>
+                <!-- Policies Sub-tab -->
+                <div id="policies-subtab" class="sub-tab-content active">
+                    <div class="cards-grid">
+                        <div class="card">
+                            <h3>Scaling Overview</h3>
+                            <div id="scaling-summary">
+                                <p><strong>Active Policies:</strong> <span id="active-policies">-</span></p>
+                                <p><strong>Auto-Scaled Apps:</strong> <span id="autoscaled-apps">-</span></p>
+                                <p><strong>Recent Actions:</strong> <span id="recent-actions">-</span></p>
+                            </div>
+                        </div>
+                    </div>
+                
+                    <div class="table-container">
+                        <h3>Scaling Policies</h3>
+                        <table id="policies-table">
+                            <thead>
+                                <tr>
+                                    <th>Application</th>
+                                    <th>Type</th>
+                                    <th>Min/Max Replicas</th>
+                                    <th>Thresholds</th>
+                                    <th>Cooldown</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="policies-tbody">
+                                <tr><td colspan="7">Loading policies...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="table-container">
+                        <h3>ML Predictive Scaling</h3>
+                        <div style="background: #e8f4fd; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+                            <h4>ML System Status</h4>
+                            <p><strong>ML Policies:</strong> <span id="ml-policies-count">0</span></p>
+                            <p><strong>Training Data Points:</strong> <span id="training-data-points">0</span></p>
+                            <p><strong>Models Trained:</strong> <span id="models-trained">0</span></p>
+                            <p><strong>Last Prediction:</strong> <span id="last-prediction">None</span></p>
+                            <button class="btn btn-secondary" onclick="alert('ML Policy creation coming soon')">Create ML Policy</button>
+                        </div>
+                    </div>
+                    
+                    <div class="table-container">
+                        <h3>Scheduled Policies</h3>
+                        <table id="scheduled-policies-table">
+                            <thead>
+                                <tr>
+                                    <th>Application</th>
+                                    <th>Schedule Name</th>
+                                    <th>Time</th>
+                                    <th>Days</th>
+                                    <th>Target Replicas</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="scheduled-policies-tbody">
+                                <tr><td colspan="7">Loading scheduled policies...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
                 
-                <div class="table-container">
-                    <h3>Recent Scaling Events</h3>
-                    <table id="events-table">
-                        <thead>
-                            <tr>
-                                <th>Time</th>
-                                <th>Application</th>
-                                <th>Action</th>
-                                <th>From</th>
-                                <th>To</th>
-                                <th>Reason</th>
-                            </tr>
-                        </thead>
-                        <tbody id="events-tbody">
-                            <tr><td colspan="6">Loading events...</td></tr>
-                        </tbody>
-                    </table>
+                <!-- ML Predictive Sub-tab -->
+                <div id="ml-subtab" class="sub-tab-content">
+                    <div class="ml-controls">
+                        <button class="btn btn-primary" onclick="refreshMLData()">Refresh ML Status</button>
+                        <button class="btn btn-secondary" onclick="showCreateMLPolicyModal()">Create ML Policy</button>
+                        <button class="btn btn-info" onclick="showMLAnalyticsModal()">ML Analytics</button>
+                        <button class="btn btn-success" onclick="showMultiHorizonPredictions()">Multi-Horizon Predictions</button>
+                        <button class="btn btn-warning" onclick="showAnomalyDetection()">Anomaly Detection</button>
+                        <button class="btn btn-info" onclick="showPredictionService()">Prediction Service</button>
+                        <button class="btn btn-secondary" onclick="showModelWeightsConfig()">Configure Weights</button>
+                        <button class="btn btn-warning" onclick="showAutoRetrainingConfig()">Auto-Retrain Config</button>
+                        <button class="btn btn-success" onclick="showProactiveScalingConfig()">Proactive Scaling</button>
+                    </div>
+                    
+                    <div class="cards-grid">
+                        <div class="card">
+                            <h3>ML System Status</h3>
+                            <div id="ml-system-status">
+                                <p><strong>ML Policies:</strong> <span id="ml-policies-count">-</span></p>
+                                <p><strong>Training Data Points:</strong> <span id="training-data-points">-</span></p>
+                                <p><strong>Models Trained:</strong> <span id="models-trained">-</span></p>
+                                <p><strong>Last Prediction:</strong> <span id="last-prediction">-</span></p>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <h3>ML Performance</h3>
+                            <div id="ml-performance">
+                                <p><strong>Prediction Accuracy:</strong> <span id="prediction-accuracy">-</span></p>
+                                <p><strong>Avg Confidence:</strong> <span id="avg-confidence">-</span></p>
+                                <p><strong>ML Scaling Actions:</strong> <span id="ml-scaling-actions">-</span></p>
+                                <p><strong>Data Collection:</strong> <span id="data-collection-status">-</span></p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="table-container">
+                        <h3>ML Scaling Policies</h3>
+                        <table id="ml-policies-table">
+                            <thead>
+                                <tr>
+                                    <th>Application</th>
+                                    <th>Prediction Horizon</th>
+                                    <th>Confidence Threshold</th>
+                                    <th>Min/Max Replicas</th>
+                                    <th>Status</th>
+                                    <th>Last Prediction</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ml-policies-tbody">
+                                <tr><td colspan="7">Loading ML policies...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="table-container">
+                        <h3>ML Training Data</h3>
+                        <table id="ml-training-data-table">
+                            <thead>
+                                <tr>
+                                    <th>Application</th>
+                                    <th>Data Points</th>
+                                    <th>Date Range</th>
+                                    <th>Ready for Training</th>
+                                    <th>Last Collection</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ml-training-data-tbody">
+                                <tr><td colspan="6">Loading training data...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="table-container">
+                        <h3>Recent ML Predictions</h3>
+                        <table id="ml-predictions-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Application</th>
+                                    <th>Predicted CPU</th>
+                                    <th>Predicted Memory</th>
+                                    <th>Recommended Replicas</th>
+                                    <th>Confidence</th>
+                                    <th>Action Taken</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ml-predictions-tbody">
+                                <tr><td colspan="7">Loading ML predictions...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Events Sub-tab -->
+                <div id="events-subtab" class="sub-tab-content">
+                    <div class="table-container">
+                        <h3>Recent Scaling Events</h3>
+                        <table id="events-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Application</th>
+                                    <th>Action</th>
+                                    <th>From</th>
+                                    <th>To</th>
+                                    <th>Reason</th>
+                                    <th>Type</th>
+                                </tr>
+                            </thead>
+                            <tbody id="events-tbody">
+                                <tr><td colspan="7">Loading events...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
@@ -757,6 +907,15 @@
         document.addEventListener('DOMContentLoaded', function() {
             initializeDashboard();
             setInterval(refreshData, 5000); // Refresh every 5 seconds
+            
+            // Initialize ML data on startup
+            setTimeout(function() {
+                fetch('/api/cluster.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: 'action=init_ml_data'
+                }).catch(e => console.log('ML init skipped:', e.message));
+            }, 2000);
         });
     </script>
 </body>

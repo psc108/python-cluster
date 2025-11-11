@@ -96,10 +96,19 @@ class AdvancedAutoScaler:
     def evaluate_all_policies(self):
         """Evaluate all metric-based policies with advanced features"""
         try:
-            policies = self.load_json(self.policies_file, [])
+            policies_data = self.load_json(self.policies_file, {})
+            
+            # Handle both dictionary and list formats
+            if isinstance(policies_data, dict):
+                policies = list(policies_data.values())
+            elif isinstance(policies_data, list):
+                policies = policies_data
+            else:
+                logger.warning(f"Unexpected policies data format: {type(policies_data)}")
+                return
             
             for policy in policies:
-                if policy.get('enabled', False):
+                if isinstance(policy, dict) and policy.get('enabled', False):
                     policy_type = policy.get('type', 'basic')
                     
                     if policy_type == 'multi-metric':
@@ -109,6 +118,7 @@ class AdvancedAutoScaler:
                         
         except Exception as e:
             logger.error(f"Error evaluating policies: {e}")
+            logger.exception("Full traceback:")
     
     def evaluate_multi_metric_policy(self, policy: Dict):
         """Evaluate policy with multiple metrics and weighted decisions"""
@@ -356,19 +366,40 @@ class AdvancedAutoScaler:
                 apps = response.json()
                 for app in apps:
                     if app['name'] == app_name:
+                        # Ensure numeric values
+                        cpu_percent = app.get('cpu_percent', 0)
+                        memory_mb = app.get('memory_mb', 0)
+                        
+                        # Convert memory MB to percentage (assuming 1GB = 1024MB as baseline)
+                        memory_percent = (float(memory_mb) / 1024) * 100 if memory_mb else 0
+                        
                         return {
-                            'cpu': app.get('cpu_percent', 0),
-                            'memory': app.get('memory_percent', 0),
-                            'replicas': app.get('replicas', 0)
+                            'cpu': float(cpu_percent) if cpu_percent else 0,
+                            'memory': float(memory_percent),
+                            'memory_mb': float(memory_mb) if memory_mb else 0
                         }
         except Exception as e:
             logger.error(f"Error getting metrics for {app_name}: {e}")
-        return {}
+        return {'cpu': 0, 'memory': 0, 'memory_mb': 0}
     
     def get_current_replicas(self, app_name: str) -> int:
         """Get current replica count"""
-        metrics = self.get_application_metrics(app_name)
-        return metrics.get('replicas', 0)
+        try:
+            response = requests.get(f"{self.dashboard_api}?action=applications")
+            if response.status_code == 200:
+                apps = response.json()
+                for app in apps:
+                    if app['name'] == app_name:
+                        replicas_str = app.get('replicas', '0')
+                        # Handle "2/3" format - take the first number (current)
+                        if '/' in str(replicas_str):
+                            current = str(replicas_str).split('/')[0]
+                        else:
+                            current = str(replicas_str)
+                        return int(current)
+        except Exception as e:
+            logger.error(f"Error getting replica count for {app_name}: {e}")
+        return 0
     
     def log_scaling_event(self, event: Dict):
         """Log scaling event to events file"""

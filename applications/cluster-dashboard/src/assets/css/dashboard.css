@@ -281,6 +281,13 @@ tbody tr:hover {
     display: flex;
     gap: 10px;
     margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+    .autoscaling-controls {
+        flex-direction: column;
+    }
 }
 
 /* Metrics */
@@ -973,5 +980,155 @@ tbody tr:hover {
     
     .checkbox-group {
         grid-template-columns: 1fr;
+    }
+}
+
+/* Sub-tabs for Auto-Scaling */
+.sub-nav-tabs {
+    display: flex;
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 3px;
+    margin-bottom: 20px;
+    border: 1px solid #e9ecef;
+}
+
+.sub-tab-button {
+    flex: 1;
+    padding: 10px 15px;
+    border: none;
+    background: transparent;
+    color: #6c757d;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+}
+
+.sub-tab-button:hover {
+    background: #e9ecef;
+    color: #495057;
+}
+
+.sub-tab-button.active {
+    background: #3498db;
+    color: white;
+    box-shadow: 0 2px 4px rgba(52, 152, 219, 0.3);
+}
+
+.sub-tab-content {
+    display: none;
+}
+
+.sub-tab-content.active {
+    display: block;
+}
+
+/* ML-specific styles */
+.ml-controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.ml-status-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+}
+
+.ml-status-card h3 {
+    color: white;
+}
+
+.ml-performance-card {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    border: none;
+}
+
+.ml-performance-card h3 {
+    color: white;
+}
+
+/* ML prediction confidence indicators */
+.confidence-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.confidence-high {
+    background: #d5f4e6;
+    color: #27ae60;
+}
+
+.confidence-medium {
+    background: #fdeaa7;
+    color: #f39c12;
+}
+
+.confidence-low {
+    background: #fadbd8;
+    color: #e74c3c;
+}
+
+/* ML training status */
+.training-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.85rem;
+}
+
+.training-ready {
+    color: #27ae60;
+}
+
+.training-insufficient {
+    color: #f39c12;
+}
+
+.training-error {
+    color: #e74c3c;
+}
+
+/* ML prediction type badges */
+.prediction-type {
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.prediction-ml {
+    background: #e8f5e8;
+    color: #27ae60;
+}
+
+.prediction-threshold {
+    background: #e8f4fd;
+    color: #3498db;
+}
+
+.prediction-scheduled {
+    background: #fff3cd;
+    color: #f39c12;
+}
+
+/* Responsive sub-tabs */
+@media (max-width: 768px) {
+    .sub-nav-tabs {
+        flex-direction: column;
+    }
+    
+    .ml-controls {
+        flex-direction: column;
     }
 }
