@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: Application
+metadata:
+  name: cluster-mysql
+  version: 8.0.35
+  description: "MySQL database cluster with persistent storage and replication"
+spec:
+  replicas: 3
+  image: mysql:8.0.35
+  ports:
+    - name: mysql
+      port: 3306
+      protocol: TCP
+    - name: mysqlx
+      port: 33060
+      protocol: TCP
+  resources:
+    cpu: 500m
+    memory: 1Gi
+  healthCheck:
+    command: ["mysqladmin", "ping", "-h", "localhost"]
+    interval: 30s
+    timeout: 5s
+    retries: 3
+  environment:
+    - name: MYSQL_ROOT_PASSWORD
+      value: "cluster_root_pass"
+    - name: MYSQL_DATABASE
+      value: "cluster_db"
+    - name: MYSQL_USER
+      value: "cluster_user"
+    - name: MYSQL_PASSWORD
+      value: "cluster_pass"
+    - name: MYSQL_REPLICATION_USER
+      value: "repl_user"
+    - name: MYSQL_REPLICATION_PASSWORD
+      value: "repl_pass"
+  volumes:
+    - name: mysql-data
+      mountPath: /var/lib/mysql
+      size: 10Gi
+    - name: mysql-config
+      mountPath: /etc/mysql/conf.d
+      configMap: mysql-config
+  scaling:
+    enabled: false
+    reason: "Stateful database requires manual scaling"

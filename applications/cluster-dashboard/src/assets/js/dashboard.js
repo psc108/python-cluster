@@ -3288,28 +3288,178 @@ window.submitMLPolicy = async function() {
     }
 };
 
-window.showMultiHorizonPredictions = function() {
-    alert('Multi-Horizon Predictions - Feature available');
+// These functions are already defined above with full functionality
+// Remove the placeholder alert versions
+
+// Database functions
+let currentDatabase = '';
+let currentTable = '';
+
+async function refreshDatabase() {
+    await refreshDatabases();
+}
+
+window.refreshDatabases = async function() {
+    try {
+        const response = await fetch('/api/mysql.php?action=databases');
+        const data = await response.json();
+        
+        const list = document.getElementById('databases-list');
+        if (data.success) {
+            list.innerHTML = '';
+            data.databases.forEach(db => {
+                const li = document.createElement('li');
+                li.innerHTML = `<a href="#" onclick="selectDatabase('${db}')">${db}</a>`;
+                list.appendChild(li);
+            });
+        } else {
+            list.innerHTML = '<li>Error loading databases</li>';
+        }
+    } catch (error) {
+        document.getElementById('databases-list').innerHTML = '<li>Connection error</li>';
+    }
 };
 
-window.showAnomalyDetection = function() {
-    alert('Anomaly Detection - Feature available');
+window.selectDatabase = async function(database) {
+    currentDatabase = database;
+    document.getElementById('current-database').textContent = database;
+    
+    try {
+        const response = await fetch(`/api/mysql.php?action=tables&database=${database}`);
+        const data = await response.json();
+        
+        const tbody = document.getElementById('tables-tbody');
+        if (data.success) {
+            tbody.innerHTML = '';
+            data.tables.forEach(table => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><a href="#" onclick="selectTable('${table.name}')">${table.name}</a></td>
+                    <td>${table.rows}</td>
+                    <td>${table.size}</td>
+                    <td>
+                        <button class="btn btn-small btn-primary" onclick="selectTable('${table.name}')">Browse</button>
+                        <button class="btn btn-small btn-danger" onclick="dropTable('${table.name}')">Drop</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="4">Error loading tables</td></tr>';
+        }
+    } catch (error) {
+        document.getElementById('tables-tbody').innerHTML = '<tr><td colspan="4">Connection error</td></tr>';
+    }
 };
 
-window.showPredictionService = function() {
-    alert('Prediction Service - Feature available');
+window.selectTable = async function(table) {
+    currentTable = table;
+    document.getElementById('current-table').textContent = table;
+    
+    document.getElementById('db-tables-view').classList.remove('active');
+    document.getElementById('db-data-view').classList.add('active');
+    
+    try {
+        const response = await fetch(`/api/mysql.php?action=table_data&database=${currentDatabase}&table=${table}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            const thead = document.getElementById('data-thead');
+            const tbody = document.getElementById('data-tbody');
+            
+            // Build header
+            thead.innerHTML = '<tr>' + data.columns.map(col => `<th>${col.Field}</th>`).join('') + '<th>Actions</th></tr>';
+            
+            // Build data rows
+            tbody.innerHTML = '';
+            data.data.forEach((row, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = data.columns.map(col => `<td>${row[col.Field] || ''}</td>`).join('') + 
+                    `<td>
+                        <button class="btn btn-small btn-warning" onclick="editRow(${index})">Edit</button>
+                        <button class="btn btn-small btn-danger" onclick="deleteRowData(${index})">Delete</button>
+                    </td>`;
+                tbody.appendChild(tr);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading table data:', error);
+    }
 };
 
-window.showModelWeightsConfig = function() {
-    alert('Model Weights Config - Feature available');
+window.goBackToTables = function() {
+    document.getElementById('db-data-view').classList.remove('active');
+    document.getElementById('db-tables-view').classList.add('active');
 };
 
-window.showAutoRetrainingConfig = function() {
-    alert('Auto-Retraining Config - Feature available');
+window.showCreateDatabaseModal = function() {
+    const name = prompt('Enter database name:');
+    if (name) {
+        fetch('/api/mysql.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'create_database', name: name })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Database created successfully');
+                refreshDatabases();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        });
+    }
 };
 
-window.showProactiveScalingConfig = function() {
-    alert('Proactive Scaling Config - Feature available');
+window.showSQLQueryModal = function() {
+    const sql = prompt('Enter SQL query:');
+    if (sql) {
+        fetch('/api/mysql.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'execute_sql', sql: sql })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (data.type === 'select') {
+                    alert('Query executed. Results: ' + JSON.stringify(data.result, null, 2));
+                } else {
+                    alert('Query executed. Affected rows: ' + data.affected_rows);
+                }
+            } else {
+                alert('Error: ' + data.error);
+            }
+        });
+    }
+};
+
+window.showCreateTableModal = function() {
+    alert('Create Table - Feature available');
+};
+
+window.showInsertRowModal = function() {
+    alert('Insert Row - Feature available');
+};
+
+window.dropTable = function(table) {
+    if (confirm(`Drop table '${table}'? This cannot be undone.`)) {
+        fetch('/api/mysql.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'drop_table', database: currentDatabase, table: table })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Table dropped successfully');
+                selectDatabase(currentDatabase);
+            } else {
+                alert('Error: ' + data.error);
+            }
+        });
+    }
 };
 
 // Initialize ML data refresh on page load

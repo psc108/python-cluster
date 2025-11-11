@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  mysql-master:
+    build: .
+    container_name: mysql-master
+    environment:
+      MYSQL_ROOT_PASSWORD: cluster_root_pass
+      MYSQL_DATABASE: cluster_db
+      MYSQL_USER: cluster_user
+      MYSQL_PASSWORD: cluster_pass
+      MYSQL_REPLICATION_USER: repl_user
+      MYSQL_REPLICATION_PASSWORD: repl_pass
+    ports:
+      - "13306:3306"
+      - "13360:33060"
+    volumes:
+      - mysql-master-data:/var/lib/mysql
+      - mysql-logs:/var/log/mysql
+    networks:
+      - mysql-cluster
+    command: --server-id=1 --log-bin=mysql-bin --gtid-mode=ON --enforce-gtid-consistency=ON
+
+  mysql-slave-1:
+    build: .
+    container_name: mysql-slave-1
+    environment:
+      MYSQL_ROOT_PASSWORD: cluster_root_pass
+      MYSQL_DATABASE: cluster_db
+      MYSQL_USER: cluster_user
+      MYSQL_PASSWORD: cluster_pass
+      MYSQL_REPLICATION_USER: repl_user
+      MYSQL_REPLICATION_PASSWORD: repl_pass
+    ports:
+      - "13307:3306"
+      - "13361:33060"
+    volumes:
+      - mysql-slave1-data:/var/lib/mysql
+      - mysql-logs:/var/log/mysql
+    networks:
+      - mysql-cluster
+    depends_on:
+      - mysql-master
+    command: --server-id=2 --log-bin=mysql-bin --gtid-mode=ON --enforce-gtid-consistency=ON --read-only=1
+
+  mysql-slave-2:
+    build: .
+    container_name: mysql-slave-2
+    environment:
+      MYSQL_ROOT_PASSWORD: cluster_root_pass
+      MYSQL_DATABASE: cluster_db
+      MYSQL_USER: cluster_user
+      MYSQL_PASSWORD: cluster_pass
+      MYSQL_REPLICATION_USER: repl_user
+      MYSQL_REPLICATION_PASSWORD: repl_pass
+    ports:
+      - "13308:3306"
+      - "13362:33060"
+    volumes:
+      - mysql-slave2-data:/var/lib/mysql
+      - mysql-logs:/var/log/mysql
+    networks:
+      - mysql-cluster
+    depends_on:
+      - mysql-master
+    command: --server-id=3 --log-bin=mysql-bin --gtid-mode=ON --enforce-gtid-consistency=ON --read-only=1
+
+volumes:
+  mysql-master-data:
+  mysql-slave1-data:
+  mysql-slave2-data:
+  mysql-logs:
+
+networks:
+  mysql-cluster:
+    driver: bridge

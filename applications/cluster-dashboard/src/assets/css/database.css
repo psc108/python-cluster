@@ -1,0 +1,93 @@
+/* Database styles */
+.database-controls {
+    margin-bottom: 20px;
+}
+
+.database-nav {
+    display: flex;
+    gap: 20px;
+    height: 600px;
+}
+
+.db-sidebar {
+    width: 250px;
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 6px;
+    overflow-y: auto;
+}
+
+.db-sidebar h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #2c3e50;
+}
+
+.db-sidebar ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.db-sidebar li {
+    margin-bottom: 8px;
+}
+
+.db-sidebar a {
+    color: #3498db;
+    text-decoration: none;
+    padding: 5px 10px;
+    display: block;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.db-sidebar a:hover {
+    background-color: #e3f2fd;
+}
+
+.db-content {
+    flex: 1;
+    background: white;
+    border-radius: 6px;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.db-view {
+    display: none;
+}
+
+.db-view.active {
+    display: block;
+}
+
+.table-controls {
+    margin-bottom: 15px;
+}
+
+#table-data-container {
+    max-height: 400px;
+    overflow: auto;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+#data-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#data-table th,
+#data-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+}
+
+#data-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+}

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cluster Dashboard</title>
     <link rel="stylesheet" href="assets/css/dashboard.css">
+    <link rel="stylesheet" href="assets/css/database.css">
     <script src="assets/js/dashboard.js"></script>
 </head>
 <body>
@@ -24,6 +25,7 @@
             <button class="tab-button" onclick="showTab('autoscaling')">Auto-Scaling</button>
             <button class="tab-button" onclick="showTab('metrics')">Metrics</button>
             <button class="tab-button" onclick="showTab('storage')">Storage</button>
+            <button class="tab-button" onclick="showTab('database')">Database</button>
         </nav>
 
         <main>
@@ -400,6 +402,56 @@
                             <tr><td colspan="6">Loading volumes...</td></tr>
                         </tbody>
                     </table>
+                </div>
+            </div>
+
+            <!-- Database Tab -->
+            <div id="database" class="tab-content">
+                <div class="database-controls">
+                    <button class="btn btn-primary" onclick="refreshDatabases()">Refresh</button>
+                    <button class="btn btn-secondary" onclick="showCreateDatabaseModal()">Create Database</button>
+                    <button class="btn btn-info" onclick="showSQLQueryModal()">Execute SQL</button>
+                </div>
+                
+                <div class="database-nav">
+                    <div class="db-sidebar">
+                        <h3>Databases</h3>
+                        <ul id="databases-list">
+                            <li>Loading...</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="db-content">
+                        <div id="db-tables-view" class="db-view active">
+                            <h3>Tables in <span id="current-database">-</span></h3>
+                            <div class="table-controls">
+                                <button class="btn btn-small btn-secondary" onclick="showCreateTableModal()">Create Table</button>
+                            </div>
+                            <table id="tables-table">
+                                <thead>
+                                    <tr><th>Table Name</th><th>Rows</th><th>Size</th><th>Actions</th></tr>
+                                </thead>
+                                <tbody id="tables-tbody">
+                                    <tr><td colspan="4">Select a database</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div id="db-data-view" class="db-view">
+                            <h3>Data in <span id="current-table">-</span></h3>
+                            <div class="table-controls">
+                                <button class="btn btn-small btn-secondary" onclick="showInsertRowModal()">Insert Row</button>
+                                <button class="btn btn-small btn-info" onclick="showTableStructure()">Structure</button>
+                                <button class="btn btn-small btn-warning" onclick="goBackToTables()">Back to Tables</button>
+                            </div>
+                            <div id="table-data-container">
+                                <table id="data-table">
+                                    <thead id="data-thead"></thead>
+                                    <tbody id="data-tbody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </main>

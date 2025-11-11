@@ -70,39 +70,22 @@ switch ($action) {
             'created_at' => time()
         ];
         
-        // Save to database
+        // Save to database only
         try {
             $db_result = shell_exec('python /var/www/html/scripts/save_policy.py ' . escapeshellarg(json_encode($policy)) . ' 2>&1');
+            echo json_encode(['success' => true, 'policy' => $policy]);
         } catch (Exception $e) {
-            // Fallback to file storage
+            echo json_encode(['success' => false, 'error' => 'Failed to save policy to database']);
         }
-        
-        $policies_file = '/var/www/html/data/scaling_policies.json';
-        $policies = [];
-        
-        if (file_exists($policies_file)) {
-            $policies = json_decode(file_get_contents($policies_file), true) ?: [];
-        }
-        
-        if (!file_exists('/var/www/html/data')) {
-            mkdir('/var/www/html/data', 0755, true);
-        }
-        
-        $policies[$input['application']] = $policy;
-        file_put_contents($policies_file, json_encode($policies, JSON_PRETTY_PRINT));
-        
-        echo json_encode(['success' => true, 'policy' => $policy]);
         break;
     case 'get_scaling_policies':
-        $policies_file = '/var/www/html/data/scaling_policies.json';
-        
-        if (!file_exists($policies_file)) {
+        try {
+            $db_result = shell_exec('python /var/www/html/scripts/get_policies.py 2>&1');
+            $policies = json_decode($db_result, true) ?: [];
+            echo json_encode($policies);
+        } catch (Exception $e) {
             echo json_encode([]);
-            break;
         }
-        
-        $policies = json_decode(file_get_contents($policies_file), true) ?: [];
-        echo json_encode($policies);
         break;
     case 'scaling_events':
         echo json_encode(getScalingEvents());
@@ -302,97 +285,75 @@ function getClusterNodes() {
 }
 
 function getApplications() {
-    // Get deployed applications from Docker containers
-    $applications = [];
-    
+    // Get applications from database
     try {
-        // List all containers with app- prefix (including stopped ones)
-        $containers_output = shell_exec('sudo docker ps -a --filter "name=app-" --format "{{.Names}}\t{{.Status}}\t{{.Image}}\t{{.Ports}}" 2>/dev/null');
+        $db_result = shell_exec('python /var/www/html/scripts/database_manager.py get_applications 2>&1');
+        $db_apps = json_decode($db_result, true) ?: [];
         
-        if ($containers_output) {
-            $lines = explode("\n", trim($containers_output));
-            $app_groups = [];
+        $applications = [];
+        
+        foreach ($db_apps as $app) {
+            // Get container status from Docker for real-time info
+            $containers_output = shell_exec("sudo docker ps -a --filter \"name=app-{$app['name']}-\" --format \"{{.Names}}\t{{.Status}}\" 2>/dev/null");
             
-            foreach ($lines as $line) {
-                if (empty($line)) continue;
-                
-                $parts = explode("\t", $line);
-                if (count($parts) >= 3) {
-                    $container_name = $parts[0];
-                    $status = $parts[1];
-                    $image = $parts[2];
-                    $ports = $parts[3] ?? '';
-                    
-                    // Extract app name (remove app- prefix and instance number)
-                    if (preg_match('/^app-(.+?)-\d+$/', $container_name, $matches)) {
-                        $app_name = $matches[1];
-                        
-                        if (!isset($app_groups[$app_name])) {
-                            $app_groups[$app_name] = [
-                                'name' => $app_name,
-                                'image' => $image,
-                                'containers' => [],
-                                'running' => 0,
-                                'total' => 0
-                            ];
-                        }
-                        
-                        $app_groups[$app_name]['containers'][] = [
-                            'name' => $container_name,
-                            'status' => $status,
-                            'ports' => $ports
-                        ];
-                        
-                        $app_groups[$app_name]['total']++;
-                        if (strpos($status, 'Up') === 0) {
-                            $app_groups[$app_name]['running']++;
-                        } elseif (strpos($status, 'Exited') === 0) {
-                            // Container exists but is stopped (paused)
+            $running = 0;
+            $total = 0;
+            $status = $app['status'] ?? 'stopped';
+            
+            if ($containers_output) {
+                $lines = explode("\n", trim($containers_output));
+                foreach ($lines as $line) {
+                    if (empty($line)) continue;
+                    $parts = explode("\t", $line);
+                    if (count($parts) >= 2) {
+                        $total++;
+                        if (strpos($parts[1], 'Up') === 0) {
+                            $running++;
                         }
                     }
                 }
+                
+                // Update status based on container state
+                if ($running > 0) {
+                    $status = 'running';
+                } elseif ($total > 0) {
+                    $status = 'paused';
+                } else {
+                    $status = 'stopped';
+                }
             }
             
-            // Convert to application list
-            foreach ($app_groups as $app_name => $app_data) {
-                $status = 'stopped';
-                if ($app_data['running'] > 0) {
-                    $status = 'running';
-                } elseif ($app_data['total'] > 0) {
-                    $status = 'paused';
-                }
-                
-                // Check if auto-scaling is enabled
-                $autoScaling = hasAutoScalingPolicy($app_name);
-                
-                // Get actual resource metrics from containers
-                $cpu_percent = 0;
-                $memory_mb = 0;
-                
-                if ($app_data['running'] > 0) {
-                    $metrics = getApplicationMetrics($app_name);
-                    $cpu_percent = $metrics['cpu_percent'];
-                    $memory_mb = $metrics['memory_mb'];
-                }
-                
-                $applications[] = [
-                    'name' => $app_name,
-                    'status' => $status,
-                    'replicas' => $app_data['running'] . '/' . $app_data['total'],
-                    'version' => getApplicationVersion($app_name),
-                    'cpu_percent' => $cpu_percent,
-                    'memory_mb' => $memory_mb,
-                    'uptime' => getApplicationUptime($app_name),
-                    'autoScaling' => $autoScaling
-                ];
+            // Check if auto-scaling is enabled
+            $autoScaling = hasAutoScalingPolicy($app['name']);
+            
+            // Get actual resource metrics from containers
+            $cpu_percent = 0;
+            $memory_mb = 0;
+            
+            if ($running > 0) {
+                $metrics = getApplicationMetrics($app['name']);
+                $cpu_percent = $metrics['cpu_percent'];
+                $memory_mb = $metrics['memory_mb'];
             }
+            
+            $applications[] = [
+                'name' => $app['name'],
+                'status' => $status,
+                'replicas' => $running . '/' . ($app['replicas'] ?? $total),
+                'version' => getApplicationVersion($app['name']),
+                'cpu_percent' => $cpu_percent,
+                'memory_mb' => $memory_mb,
+                'uptime' => getApplicationUptime($app['name']),
+                'autoScaling' => $autoScaling ? 'Enabled' : 'Manual'
+            ];
         }
         
+        return $applications;
+        
     } catch (Exception $e) {
-        error_log("Error getting applications: " . $e->getMessage());
+        error_log("Error getting applications from database: " . $e->getMessage());
+        return [];
     }
-    
-    return $applications;
 }
 
 function getApplicationUptime($app_name) {
@@ -911,19 +872,35 @@ function handleDeployApplication() {
     $app_name = $input['name'];
     $image = $input['image'];
     $replicas = $input['replicas'] ?? 1;
-    $port = $input['ports'][0]['port'] ?? 8080;
-    $cpu = $input['resources']['cpu'] ?? '100m';
-    $memory = $input['resources']['memory'] ?? '128Mi';
+    $ports = $input['ports'] ?? [['port' => 8080]];
+    $resources = $input['resources'] ?? ['cpu' => '100m', 'memory' => '128Mi'];
     
-    // Create application directory and files
-    $result = createAndDeployApplication($app_name, $image, $replicas, $port, $cpu, $memory);
+    // Save to database first
+    $app_data = [
+        'name' => $app_name,
+        'image' => $image,
+        'replicas' => $replicas,
+        'status' => 'running',
+        'ports' => json_encode($ports),
+        'resources' => json_encode($resources)
+    ];
     
-    // Log the deployment
-    $status = $result['success'] ? 'SUCCESS' : 'FAILED';
-    $log_entry = date('Y-m-d H:i:s') . " - [{$status}] Deployed {$app_name} with image {$image} ({$replicas} replicas)\n";
-    file_put_contents('/var/www/html/data/operations.log', $log_entry, FILE_APPEND);
-    
-    return $result;
+    try {
+        $db_result = shell_exec('python /var/www/html/scripts/database_manager.py save_application ' . escapeshellarg(json_encode($app_data)) . ' 2>&1');
+        
+        // Deploy containers
+        $deploy_result = createAndDeployApplication($app_name, $image, $replicas, $ports[0]['port'], $resources['cpu'], $resources['memory']);
+        
+        // Log the deployment
+        $status = $deploy_result['success'] ? 'SUCCESS' : 'FAILED';
+        $log_entry = date('Y-m-d H:i:s') . " - [{$status}] Deployed {$app_name} with image {$image} ({$replicas} replicas)\n";
+        file_put_contents('/var/www/html/data/operations.log', $log_entry, FILE_APPEND);
+        
+        return $deploy_result;
+        
+    } catch (Exception $e) {
+        return ['success' => false, 'error' => 'Failed to save to database: ' . $e->getMessage()];
+    }
 }
 
 function createAndDeployApplication($app_name, $image, $replicas, $port, $cpu, $memory) {
@@ -1419,25 +1396,23 @@ function getNodeDetails() {
 // Auto-scaling functions - routed to Python service
 
 function getScalingEvents() {
-    $events_file = '/var/www/html/data/scaling_events.json';
-    
-    if (!file_exists($events_file)) {
+    try {
+        $db_result = shell_exec('python /var/www/html/scripts/get_scaling_events.py 2>&1');
+        $events = json_decode($db_result, true) ?: [];
+        return $events;
+    } catch (Exception $e) {
         return [];
     }
-    
-    $events = json_decode(file_get_contents($events_file), true) ?: [];
-    return array_slice($events, -50); // Return last 50 events
 }
 
 function hasAutoScalingPolicy($app_name) {
-    $policies_file = '/var/www/html/data/scaling_policies.json';
-    
-    if (!file_exists($policies_file)) {
+    try {
+        $db_result = shell_exec('python /var/www/html/scripts/get_policies.py 2>&1');
+        $policies = json_decode($db_result, true) ?: [];
+        return isset($policies[$app_name]) && $policies[$app_name]['enabled'];
+    } catch (Exception $e) {
         return false;
     }
-    
-    $policies = json_decode(file_get_contents($policies_file), true) ?: [];
-    return isset($policies[$app_name]) && $policies[$app_name]['enabled'];
 }
 
 function evaluateScaling() {
@@ -1556,13 +1531,6 @@ function executeScalingAction($app_name, $target_replicas, $action, $reason) {
 }
 
 function recordScalingEvent($app_name, $action, $target_replicas, $reason, $from_replicas = null) {
-    $events_file = '/var/www/html/data/scaling_events.json';
-    $events = [];
-    
-    if (file_exists($events_file)) {
-        $events = json_decode(file_get_contents($events_file), true) ?: [];
-    }
-    
     // Get current replica count if not provided
     if ($from_replicas === null) {
         $apps = getApplications();
@@ -1575,7 +1543,7 @@ function recordScalingEvent($app_name, $action, $target_replicas, $reason, $from
         }
     }
     
-    $events[] = [
+    $event = [
         'application' => $app_name,
         'action' => $action,
         'from_replicas' => $from_replicas ?: 0,
@@ -1586,12 +1554,12 @@ function recordScalingEvent($app_name, $action, $target_replicas, $reason, $from
         'formatted_time' => date('Y-m-d H:i:s')
     ];
     
-    // Keep only last 100 events
-    if (count($events) > 100) {
-        $events = array_slice($events, -100);
+    try {
+        shell_exec('python /var/www/html/scripts/save_scaling_event.py ' . escapeshellarg(json_encode($event)) . ' 2>&1');
+    } catch (Exception $e) {
+        // Log error but don't fail the scaling operation
+        error_log("Failed to record scaling event: " . $e->getMessage());
     }
-    
-    file_put_contents($events_file, json_encode($events, JSON_PRETTY_PRINT));
 }
 
 function isInCooldown($app_name) {

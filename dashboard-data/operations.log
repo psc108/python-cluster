@@ -10198,3 +10198,57 @@
 2025-11-11 10:10:35 - [SUCCESS] Deployed test-integration-app with image nginx:latest (1 replicas)
 2025-11-11 10:10:43 - [SUCCESS] Deployed test-integration-app with image nginx:latest (1 replicas)
 2025-11-11 10:12:57 - [SUCCESS] Deployed test-integration-app with image nginx:latest (1 replicas)
+2025-11-11 13:22:14 - [SUCCESS] Deployed api-8458 with image httpd:latest (3 replicas)
+2025-11-11 13:22:28 - [SUCCESS] Scaled api-8458 to 1 replicas
+2025-11-11 13:22:36 - [SUCCESS] Deployed web-6672 with image httpd:latest (8 replicas)
+2025-11-11 13:22:43 - [SUCCESS] Deployed web-5748 with image nginx:latest (4 replicas)
+2025-11-11 13:22:47 - [FAILED] Deployed web-3149 with image httpd:latest (4 replicas)
+2025-11-11 13:22:51 - [SUCCESS] Deployed web-7358 with image nginx:latest (5 replicas)
+2025-11-11 13:23:14 - [SUCCESS] Deployed db-7391 with image mysql:latest (8 replicas)
+2025-11-11 13:23:17 - [SUCCESS] Scaled api-8458 to 1 replicas
+2025-11-11 13:23:23 - [FAILED] Deployed worker-7759 with image redis:latest (6 replicas)
+2025-11-11 13:23:23 - [FAILED] Deployed worker-5030 with image rabbitmq:latest (5 replicas)
+2025-11-11 13:23:36 - [SUCCESS] Deployed web-6431 with image nginx:latest (3 replicas)
+2025-11-11 13:23:45 - [SUCCESS] Scaled api-8458 to 1 replicas
+2025-11-11 13:23:50 - [SUCCESS] Scaled web-6672 to 5 replicas
+2025-11-11 13:23:57 - [SUCCESS] Deployed api-9154 with image nginx:latest (5 replicas)
+2025-11-11 13:24:06 - [SUCCESS] Scaled api-8458 to 5 replicas
+2025-11-11 13:24:08 - [FAILED] Deployed api-5407 with image httpd:latest (4 replicas)
+2025-11-11 13:24:08 - [SUCCESS] Scaled web-5748 to 4 replicas
+2025-11-11 13:24:09 - [SUCCESS] Deployed worker-3196 with image rabbitmq:latest (5 replicas)
+2025-11-11 13:24:22 - [SUCCESS] Deployed api-1319 with image httpd:latest (5 replicas)
+2025-11-11 13:24:41 - [SUCCESS] Scaled web-6431 to 5 replicas
+2025-11-11 13:24:43 - [SUCCESS] Scaled web-6431 to 7 replicas
+2025-11-11 13:24:52 - [SUCCESS] Deployed api-7875 with image httpd:latest (4 replicas)
+2025-11-11 13:25:21 - [SUCCESS] Scaled web-6431 to 1 replicas
+2025-11-11 13:25:55 - [SUCCESS] Scaled web-5748 to 3 replicas
+2025-11-11 13:25:56 - [SUCCESS] Scaled web-5748 to 4 replicas
+2025-11-11 13:26:02 - [FAILED] Deployed db-4847 with image postgres:latest (5 replicas)
+2025-11-11 13:26:08 - [SUCCESS] Deployed db-9674 with image mysql:latest (3 replicas)
+2025-11-11 13:26:32 - [FAILED] Deployed web-7183 with image nginx:latest (3 replicas)
+2025-11-11 13:26:33 - [SUCCESS] Scaled web-5748 to 4 replicas
+2025-11-11 13:26:37 - [SUCCESS] Deployed worker-5359 with image redis:latest (5 replicas)
+2025-11-11 13:26:37 - [FAILED] Deployed api-2839 with image nginx:latest (1 replicas)
+2025-11-11 13:26:38 - [SUCCESS] Scaled worker-3196 to 3 replicas
+2025-11-11 13:27:10 - [FAILED] Deployed cache-8622 with image redis:latest (7 replicas)
+2025-11-11 13:27:20 - [SUCCESS] Scaled api-1319 to 1 replicas
+2025-11-11 13:27:28 - [FAILED] Deployed cache-1865 with image redis:latest (2 replicas)
+2025-11-11 13:27:34 - [SUCCESS] Scaled api-8458 to 2 replicas
+2025-11-11 13:27:34 - [SUCCESS] Scaled web-6672 to 6 replicas
+2025-11-11 13:27:37 - [SUCCESS] Deployed db-8158 with image mongo:latest (5 replicas)
+2025-11-11 13:27:43 - [FAILED] Scaled api-7875 to 5 replicas
+2025-11-11 13:28:04 - [SUCCESS] Scaled web-6672 to 8 replicas
+2025-11-11 13:28:26 - [SUCCESS] Scaled web-6431 to 3 replicas
+2025-11-11 13:28:33 - [SUCCESS] Scaled web-6431 to 3 replicas
+2025-11-11 13:28:59 - [SUCCESS] Deployed db-1896 with image mysql:latest (7 replicas)
+2025-11-11 13:29:14 - [SUCCESS] Scaled api-9154 to 2 replicas
+2025-11-11 13:29:15 - [SUCCESS] Scaled api-8458 to 4 replicas
+2025-11-11 13:29:15 - [SUCCESS] Scaled api-9154 to 1 replicas
+2025-11-11 13:29:25 - [SUCCESS] Scaled worker-3196 to 3 replicas
+2025-11-11 13:29:59 - [SUCCESS] Scaled api-7875 to 1 replicas
+2025-11-11 13:30:19 - [FAILED] Deployed web-1988 with image nginx:latest (1 replicas)
+2025-11-11 13:30:20 - [SUCCESS] Deployed worker-6703 with image rabbitmq:latest (7 replicas)
+2025-11-11 13:30:36 - [SUCCESS] Scaled web-6431 to 4 replicas
+2025-11-11 13:30:53 - [SUCCESS] Scaled web-6672 to 2 replicas
+2025-11-11 13:31:14 - [SUCCESS] Scaled api-9154 to 5 replicas
+2025-11-11 13:31:24 - [SUCCESS] Scaled api-9154 to 3 replicas

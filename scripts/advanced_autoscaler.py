@@ -414,23 +414,37 @@ class AdvancedAutoScaler:
             logger.error(f"Error logging event: {e}")
     
     def load_json(self, filepath: str, default=None):
-        """Load JSON file with error handling"""
+        """Load data from database instead of files"""
         try:
-            with open(filepath, 'r') as f:
-                return json.load(f)
-        except FileNotFoundError:
-            return default if default is not None else {}
-        except Exception as e:
-            logger.error(f"Error loading {filepath}: {e}")
+            from scripts.database_manager import DatabaseManager
+            db = DatabaseManager()
+            
+            if 'scaling_policies' in filepath:
+                return db.get_scaling_policies()
+            elif 'scaling_events' in filepath:
+                return db.get_scaling_events()
+            elif 'scheduled_policies' in filepath:
+                return db.get_scheduled_policies()
+            else:
+                return default if default is not None else {}
+        except Exception:
             return default if default is not None else {}
     
     def save_json(self, filepath: str, data):
-        """Save JSON file with error handling"""
+        """Save data to database instead of files"""
         try:
-            with open(filepath, 'w') as f:
-                json.dump(data, f, indent=2)
-        except Exception as e:
-            logger.error(f"Error saving {filepath}: {e}")
+            from scripts.database_manager import DatabaseManager
+            db = DatabaseManager()
+            
+            if 'scaling_policies' in filepath:
+                for policy in data if isinstance(data, list) else data.values():
+                    if isinstance(policy, dict):
+                        db.save_scaling_policy(policy)
+            elif 'scheduled_policies' in filepath:
+                for policy in data:
+                    db.save_scheduled_policy(policy)
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     scaler = AdvancedAutoScaler()
